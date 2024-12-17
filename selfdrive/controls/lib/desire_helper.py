@@ -55,7 +55,7 @@ def calculate_lane_width(lane, lane_prob, current_lane, road_edge):
   distance_to_lane = abs(current_lane.y[index] - lane.y[index])
   #if lane_prob < 0.3:# 차선이 없으면 없는것으로 간주시킴.
   #  distance_to_lane = min(2.0, distance_to_lane)
-  distance_to_road_edge = abs(current_lane.y[index] - road_edge.y[index]);
+  distance_to_road_edge = abs(current_lane.y[index] - road_edge.y[index])
   return min(distance_to_lane, distance_to_road_edge), distance_to_road_edge, lane_prob > 0.5
 
 class ExistCounter:
@@ -115,20 +115,20 @@ class DesireHelper:
     self.object_detected_count = 0
 
     self.laneChangeNeedTorque = False
-    
+
   def update(self, carstate, modeldata, lateral_active, lane_change_prob, carrotMan, radarState):
 
     self.laneChangeNeedTorque = self.params.get_bool("LaneChangeNeedTorque")
 
 
-    
+
     v_ego = carstate.vEgo
     #one_blinker = carstate.leftBlinker != carstate.rightBlinker
     leftBlinker = carstate.leftBlinker
     rightBlinker = carstate.rightBlinker
     one_blinker = leftBlinker != rightBlinker
     driver_one_blinker = one_blinker
-    
+
     below_lane_change_speed = v_ego < LANE_CHANGE_SPEED_MIN
 
     if not leftBlinker and not rightBlinker:
@@ -138,7 +138,7 @@ class DesireHelper:
           below_lane_change_speed = True
           self.lane_change_timer = 0.0
           leftBlinker = True if atc_type == "turn left" else False
-          rightBlinker = not leftBlinker          
+          rightBlinker = not leftBlinker
           self.atc_active = 1
           self.blinker_ignore = False
       elif atc_type in ["fork left", "fork right"]:
@@ -153,9 +153,11 @@ class DesireHelper:
     if not one_blinker:
       self.blinker_ignore = False
     one_blinker &= not self.blinker_ignore
-    
-    self.lane_width_left, self.distance_to_road_edge_left, lane_prob_left = calculate_lane_width(modeldata.laneLines[0], modeldata.laneLineProbs[0], modeldata.laneLines[1], modeldata.roadEdges[0])
-    self.lane_width_right, self.distance_to_road_edge_right, lane_prob_right = calculate_lane_width(modeldata.laneLines[3], modeldata.laneLineProbs[3], modeldata.laneLines[2], modeldata.roadEdges[1])
+
+    self.lane_width_left, self.distance_to_road_edge_left, lane_prob_left = calculate_lane_width(modeldata.laneLines[0], modeldata.laneLineProbs[0],
+                                                                                                 modeldata.laneLines[1], modeldata.roadEdges[0])
+    self.lane_width_right, self.distance_to_road_edge_right, lane_prob_right = calculate_lane_width(modeldata.laneLines[3], modeldata.laneLineProbs[3],
+                                                                                                    modeldata.laneLines[2], modeldata.roadEdges[1])
     self.lane_exist_left_count.update(lane_prob_left)
     self.lane_exist_right_count.update(lane_prob_right)
     min_lane_width = 2.5
@@ -178,7 +180,7 @@ class DesireHelper:
       side_object_dist = radar.dRel + radar.vLead * 4.0 if radar.status else 255
       object_detected = side_object_dist < v_ego * 3.0
       self.object_detected_count = max(1, self.object_detected_count + 1) if object_detected else min(-1, self.object_detected_count - 1)
-      
+
     else:
       lane_available = True
       edge_available = True
@@ -200,7 +202,7 @@ class DesireHelper:
       self.turn_direction = TurnDirection.turnLeft if leftBlinker else TurnDirection.turnRight
       self.lane_change_direction = self.turn_direction #LaneChangeDirection.none
     else:
-      self.turn_direction = TurnDirection.none     
+      self.turn_direction = TurnDirection.none
       # LaneChangeState.off
       if self.lane_change_state == LaneChangeState.off and one_blinker and not self.prev_one_blinker and not below_lane_change_speed:
         self.lane_change_state = LaneChangeState.preLaneChange
@@ -230,7 +232,7 @@ class DesireHelper:
           elif driver_one_blinker and lane_available:
             self.lane_change_state = LaneChangeState.laneChangeStarting
           # ATC작동인경우 차선이 나타나거나 차선이 생기면 차선변경 시작
-          # lane_appeared: 차선이 생기는건 안함.. 위험.  
+          # lane_appeared: 차선이 생기는건 안함.. 위험.
           elif torque_applied or auto_lane_change_available:
             self.lane_change_state = LaneChangeState.laneChangeStarting
 
@@ -263,7 +265,7 @@ class DesireHelper:
 
     self.lane_available_last = lane_available
     self.edge_available_last = edge_available
-    
+
     self.prev_one_blinker = one_blinker
     steering_pressed = carstate.steeringPressed and \
                      ((carstate.steeringTorque < 0 and leftBlinker) or (carstate.steeringTorque > 0 and rightBlinker))
@@ -279,7 +281,7 @@ class DesireHelper:
       self.desire = DESIRES[self.lane_change_direction][self.lane_change_state]
 
     self.desireLog = f"desire = {self.desire}"
-      
+
     # Send keep pulse once per second during LaneChangeStart.preLaneChange
     if self.lane_change_state in (LaneChangeState.off, LaneChangeState.laneChangeStarting):
       self.keep_pulse_timer = 0.0

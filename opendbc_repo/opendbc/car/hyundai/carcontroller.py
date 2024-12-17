@@ -80,6 +80,8 @@ class CarController(CarControllerBase):
     self.lkas_max_torque = 0
     self.driver_applied_torque_reducer = 0
 
+    self.canfd_debug = 0
+
   def update(self, CC, CS, now_nanos):
 
     if self.frame % 50 == 0:
@@ -101,6 +103,8 @@ class CarController(CarControllerBase):
       self.button_spam2 = params.get_int("CruiseButtonTest2")
       self.button_spam3 = params.get_int("CruiseButtonTest3")
       self.speed_from_pcm = params.get_int("SpeedFromPCM")
+
+      self.canfd_debug = params.get_int("CanfdDebug")
       
 
     actuators = CC.actuators
@@ -116,6 +120,13 @@ class CarController(CarControllerBase):
                                                                        MAX_ANGLE_CONSECUTIVE_FRAMES)
 
     apply_angle = apply_std_steer_angle_limits(actuators.steeringAngleDeg, self.apply_angle_last, CS.out.vEgoRaw, self.params)
+    
+    if abs(CS.out.steeringTorqueEps) >= 100.0: # carrot. fault avoidance, test code
+      apply_angle = CS.out.steeringAngleDeg
+
+    # prevent steering error. carrot
+    error_limit = 5.0  
+    apply_angle = clip(apply_angle, CS.out.steeringAngleDeg - error_limit, CS.out.steeringAngleDeg + error_limit)
 
     max_torque = 200
     ego_weight = interp(CS.out.vEgoCluster, [0, 5, 10, 20], [0.2, 0.3, 0.5, 1.0])
@@ -210,7 +221,7 @@ class CarController(CarControllerBase):
 
         if True: #not camera_scc:
           if hda2:
-            can_sends.extend(hyundaicanfd.create_adrv_messages(self.CP, self.packer, self.CAN, self.frame, CC, CS, hud_control))
+            can_sends.extend(hyundaicanfd.create_adrv_messages(self.CP, self.packer, self.CAN, self.frame, CC, CS, hud_control, self.canfd_debug))
           else:
             can_sends.extend(hyundaicanfd.create_fca_warning_light(self.CP, self.packer, self.CAN, self.frame))
         if self.frame % 2 == 0:
@@ -259,9 +270,9 @@ class CarController(CarControllerBase):
       if self.frame % 20 == 0 and self.CP.openpilotLongitudinalControl:
         if camera_scc:
           if CS.scc13 is not None:
-            can_sends.append(hyundaican.create_acc_opt_copy(CS, self.packer, self.CP))
+            can_sends.append(hyundaican.create_acc_opt_copy(CS, self.packer))
         else:
-          can_sends.extend(hyundaican.create_acc_opt(CS, self.packer, self.CP))
+          can_sends.extend(hyundaican.create_acc_opt(self.packer, self.CP))
 
       # 2 Hz front radar options
       if self.frame % 50 == 0 and self.CP.openpilotLongitudinalControl and not camera_scc:

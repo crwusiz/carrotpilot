@@ -46,7 +46,7 @@ class LatControlTorque(LatControl):
 
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
-    if self.lateralTorqueCustom > 0: 
+    if self.lateralTorqueCustom > 0:
       return
 
     self.torque_params.latAccelFactor = latAccelFactor
@@ -70,7 +70,7 @@ class LatControlTorque(LatControl):
         self.torque_params.friction = self.friction_default
         self.torque_params.latAccelOffset = self.latAccelOffset_default
       self.lateralTorqueCustom = lateralTorqueCustom
-     
+
     pid_log = log.ControlsState.LateralTorqueState.new_message()
     steeringRate = math.radians(CS.steeringRateDeg)
     if not active:

@@ -2,10 +2,10 @@
 import os
 import json
 
-folder_path = "/data/params/d" 
-output_file = "/data/backup_params.json" 
+folder_path = "/data/params/d"
+output_file = "/data/backup_params.json"
 
-result = [] 
+result = []
 
 for filename in os.listdir(folder_path):
     file_path = os.path.join(folder_path, filename)

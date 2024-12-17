@@ -113,7 +113,6 @@ uint16_t current_safety_mode = SAFETY_SILENT;
 uint16_t current_safety_param = 0;
 static const safety_hooks *current_hooks = &nooutput_hooks;
 safety_config current_safety_config;
-uint8_t to_push_data_len_code = 0;  // carrot
 
 static bool is_msg_valid(RxCheck addr_list[], int index) {
   bool valid = true;

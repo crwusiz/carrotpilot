@@ -21,7 +21,7 @@ if __name__ == "__main__":
       if os.getenv("SERIAL"):
         serials = [x for x in serials if x == os.getenv("SERIAL")]
 
-      pandas = list([Panda(x, claim=claim) for x in serials])
+      pandas = [Panda(x, claim=claim) for x in serials]
 
       if not len(pandas):
         sys.exit("  no pandas found\n")

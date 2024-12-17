@@ -192,9 +192,9 @@ class Soundd:
           new_alert = getattr(AudibleAlert, f'audio{count_down}')
         elif count_down == 11:
           new_alert = AudibleAlert.promptDistracted
-          
+
     return new_alert
-  
+
   def get_audible_alert(self, sm):
     if sm.updated['selfdriveState']:
       new_alert = sm['selfdriveState'].alertSound.raw

@@ -92,7 +92,7 @@ class Controls:
     CC = car.CarControl.new_message()
     CC.enabled = self.sm['selfdriveState'].enabled
 
-  	#carrot
+    # carrot
     gear = car.CarState.GearShifter
     driving_gear = CS.gearShifter not in (gear.neutral, gear.park, gear.reverse, gear.unknown)
     lateral_enabled = driving_gear
@@ -100,7 +100,8 @@ class Controls:
 
     # Check which actuators can be enabled
     standstill = abs(CS.vEgo) <= max(self.CP.minSteerSpeed, MIN_LATERAL_CONTROL_SPEED) or CS.standstill
-    CC.latActive = (self.sm['selfdriveState'].active or lateral_enabled) and CS.latEnabled and not CS.steerFaultTemporary and not CS.steerFaultPermanent and not standstill
+    CC.latActive = ((self.sm['selfdriveState'].active or lateral_enabled) and CS.latEnabled and
+                    not CS.steerFaultTemporary and not CS.steerFaultPermanent and not standstill)
     CC.longActive = CC.enabled and not any(e.overrideLongitudinal for e in self.sm['onroadEvents']) and self.CP.openpilotLongitudinalControl
 
     actuators = CC.actuators
@@ -124,8 +125,9 @@ class Controls:
     # Steering PID loop and lateral MPC
     lat_plan = self.sm['lateralPlan']
     curve_speed_abs = abs(self.sm['carrotMan'].vTurnSpeed)
-    self.lanefull_mode_enabled = lat_plan.useLaneLines and self.params.get_int("UseLaneLineSpeedApply") > 0 and curve_speed_abs > self.params.get_int("UseLaneLineCurveSpeed")
-    
+    self.lanefull_mode_enabled = (lat_plan.useLaneLines and self.params.get_int("UseLaneLineSpeedApply") > 0 and
+                                  curve_speed_abs > self.params.get_int("UseLaneLineCurveSpeed"))
+
     if self.params.get_bool("CarrotLatControl"):
       model_actuator_delay = self.params.get_float("ModelActuatorDelay") * 0.01
       desired_curvature_now = get_lag_adjusted_curvature(self.CP, CS.vEgo, lat_plan.psis, lat_plan.curvatures, model_actuator_delay)
@@ -133,9 +135,9 @@ class Controls:
       steer_actuator_delay = self.params.get_float("SteerActuatorDelay") * 0.01
       desired_curvature_ff = get_lag_adjusted_curvature(self.CP, CS.vEgo, lat_plan.psis, lat_plan.curvatures, model_actuator_delay + steer_actuator_delay)
       self.desired_curvature = clip_curvature(CS.vEgo, self.desired_curvature, desired_curvature_now)
-      desired_curvature_ff = clip_curvature(CS.vEgo, self.desired_curvature, desired_curvature_ff)
+      desired_curvature_ff = clip_curvature(CS.vEgo, desired_curvature_now, desired_curvature_ff)
     else:
-      steer_actuator_delay = self.params.get_float("SteerActuatorDelay") * 0.01      
+      steer_actuator_delay = self.params.get_float("SteerActuatorDelay") * 0.01
       if self.lanefull_mode_enabled:
         desired_curvature = get_lag_adjusted_curvature(self.CP, CS.vEgo, lat_plan.psis, lat_plan.curvatures, steer_actuator_delay)
         desired_curvature_ff = self.desired_curvature = clip_curvature(CS.vEgo, self.desired_curvature, desired_curvature)
@@ -180,9 +182,9 @@ class Controls:
       setSpeed = speeds[-1] / vCluRatio
 
     hudControl = CC.hudControl
-    
+
     hudControl.activeCarrot = self.sm['carrotMan'].activeCarrot
-    
+
     lp = self.sm['longitudinalPlan']
     if self.CP.pcmCruise:
       speed_from_pcm = self.params.get_int("SpeedFromPCM")

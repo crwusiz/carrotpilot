@@ -223,7 +223,7 @@ def get_lead_side(v_ego, tracks, md, lane_width, model_v_ego):
       leads_left[c.dRel] = ld
 
   if lead_msg.prob > 0.5:
-    ld = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)    
+    ld = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
     leads_center[ld['dRel']] = ld
   #ll,lr = [[l[k] for k in sorted(list(l.keys()))] for l in [leads_left,leads_right]]
   #lc = sorted(leads_center.values(), key=lambda c:c["dRel"])
@@ -342,7 +342,7 @@ class VisionTrack:
     if self.prob > .5:
       dRel = float(lead_msg.x[0]) - RADAR_TO_CAMERA
       if abs(self.dRel - dRel) > 5.0:
-        cnt = 0
+        self.cnt = 0
       self.dRel = dRel
 
       self.yRel = float(-lead_msg.y[0])
@@ -355,13 +355,13 @@ class VisionTrack:
         self.vLat = 0.0
       else:
         v_rel = (self.dRel - self.dRel_last) / self.radar_ts
-        self.vRel = self.vRel * (1. - self.alpha) + v_rel * self.alpha
+        v_rel = self.vRel * (1. - self.alpha) + v_rel * self.alpha
 
         #self.vRel = lead_v_rel_pred if self.mixRadarInfo == 3 else (lead_v_rel_pred + self.vRel) / 2
-        self.vRel = (lead_v_rel_pred + self.vRel) / 2
+        self.vRel = (lead_v_rel_pred + v_rel) / 2
         self.vLead = float(v_ego + self.vRel)
 
-        a_lead = (self.vLead - self.vLead_last) / self.radar_ts * 0.5
+        a_lead = (self.vLead - self.vLead_last) / self.radar_ts * 0.2 #0.5 -> 0.2 vel 미분적용을 줄임.
         self.aLead = self.aLead * (1. - self.alpha_a) + a_lead * self.alpha_a
         if abs(a_lead_vision) > abs(self.aLead): # or self.mixRadarInfo == 3:
           self.aLead = a_lead_vision
@@ -370,7 +370,7 @@ class VisionTrack:
         self.vLat = self.vLat * (1. - vLat_alpha) + (dPath - self.dPath) / self.radar_ts * vLat_alpha
 
       self.dPath = dPath
-        
+
       self.vLeadK= self.vLead
       self.aLeadK = self.aLead
 
@@ -449,9 +449,9 @@ class RadarD:
     # *** publish radarState ***
     self.radar_state_valid = sm.all_checks() and len(rr.errors) == 0
     self.radar_state = log.RadarState.new_message()
-    
+
     model_updated = False if self.radar_state.mdMonoTime == sm.logMonoTime['modelV2'] else True
-    
+
     self.radar_state.mdMonoTime = sm.logMonoTime['modelV2']
     self.radar_state.radarErrors = list(rr.errors)
     self.radar_state.carStateMonoTime = sm.logMonoTime['carState']
@@ -466,18 +466,19 @@ class RadarD:
       if model_updated:
         self.vision_tracks[0].update(leads_v3[0], model_v_ego, self.v_ego, sm['modelV2'])
         self.vision_tracks[1].update(leads_v3[1], model_v_ego, self.v_ego, sm['modelV2'])
-    
+
       #self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, low_speed_override=False)
       #self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, low_speed_override=False)
       self.radar_state.leadOne = self.get_lead(sm['modelV2'], self.tracks, 0, leads_v3[0], model_v_ego, low_speed_override=False)
       self.radar_state.leadTwo = self.get_lead(sm['modelV2'], self.tracks, 1, leads_v3[1], model_v_ego, low_speed_override=False)
-      
-      #ll, lc, lr, leadCenter, self.radar_state.leadLeft, self.radar_state.leadRight = get_lead_side(self.v_ego, self.tracks, sm['modelV2'], sm['lateralPlan'].laneWidth, model_v_ego)
+
+      # ll, lc, lr, leadCenter, self.radar_state.leadLeft, self.radar_state.leadRight = get_lead_side(self.v_ego, self.tracks, sm['modelV2'],
+      #                                                                                               sm['lateralPlan'].laneWidth, model_v_ego)
       ll, lc, lr, leadCenter, self.radar_state.leadLeft, self.radar_state.leadRight = get_lead_side(self.v_ego, self.tracks, sm['modelV2'], 3.2, model_v_ego)
       self.radar_state.leadsLeft = list(ll)
       self.radar_state.leadsCenter = list(lc)
       self.radar_state.leadsRight = list(lr)
-      
+
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
@@ -494,7 +495,7 @@ class RadarD:
     ready = self.ready
     ## SCC레이더는 일단 보관하고 리스트에서 삭제...
     track_scc = tracks.get(0)
-    #if track_scc is not None:  
+    #if track_scc is not None:
     #  del tracks[0]            ## tracks에서 삭제하면안됨... ㅠㅠ
 
     # Determine leads, this is where the essential logic happens
@@ -508,7 +509,7 @@ class RadarD:
     #    비전과의 차이가 35%(5M)이상 차이나면 scc가 발견못한것이기 때문에 비전것으로 처리함.
 
     ### 240807, SCC레이더가 옆차선의것을 많이 가져옴... 사용하지 말아야겠다...
-    #if track_scc is not None and track is None:   
+    #if track_scc is not None and track is None:
     #  track = track_scc
     #  if self.vision_tracks[index].prob > .5:
     #    if self.vision_tracks[index].dRel < track.dRel - 10.0: #끼어드는 차량이 있는 경우 처리..  5-> 10M바꿔보자... 240427

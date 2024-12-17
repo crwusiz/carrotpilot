@@ -1,13 +1,13 @@
+from enum import Enum
+
+from cereal import log
 from openpilot.common.params import Params
 from openpilot.common.numpy_fast import clip, interp
 from openpilot.common.realtime import DT_MDL
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.filter_simple import StreamingMovingAverage
-from enum import Enum
-import json
-
 from openpilot.selfdrive.selfdrived.events import Events
-from cereal import car, log
+
 EventName = log.OnroadEvent.EventName
 LaneChangeState = log.LaneChangeState
 
@@ -18,6 +18,15 @@ class XState(Enum):
   e2eStop = 3
   e2ePrepare = 4
   e2eStopped = 5
+
+  def __str__(self):
+    return self.name
+
+class DrivingMode(Enum):
+  Eco = 1
+  Safe = 2
+  Normal = 3
+  High = 4
 
   def __str__(self):
     return self.name
@@ -46,7 +55,7 @@ class CarrotPlanner:
     #self.tFollowSpeedAddM = 0.0
     #self.tFollowLeadCarSpeed = 0.0
     #self.tFollowLeadCarAccel = 0.0
-    #self.lo_timer = 0 
+    #self.lo_timer = 0
     #self.v_ego_prev = 0.0
 
     self.trafficState = TrafficState.off
@@ -63,20 +72,11 @@ class CarrotPlanner:
     self.stopping_count = 0
     self.traffic_starting_count = 0
     self.user_stop_distance = -1
-    
+
     #self.t_follow = 0
-    
+
     self.startSignCount = 0
     self.stopSignCount = 0
-    
-    self.myDrivingMode = self.params.get_int("MyDrivingMode")
-    self.myEcoModeFactor = 0.9 #params.get_float("MyEcoModeFactor") / 100.
-    self.mySafeModeFactor = 0.8 #params.get_float("MySafeModeFactor") / 100.
-    self.mySafeFactor = 1.0
-    if self.myDrivingMode == 1: # eco
-      self.mySafeFactor = self.myEcoModeFactor
-    elif self.myDrivingMode == 2: #safe
-      self.mySafeFactor = self.mySafeModeFactor
 
     self.stop_distance = 6.0
     self.trafficStopDistanceAdjust = 1.0 #params.get_float("TrafficStopDistanceAdjust") / 100.
@@ -85,10 +85,13 @@ class CarrotPlanner:
 
     self.soft_hold_active = 0
     self.events = Events()
-    self.myDrivingMode = 3
+    self.myDrivingMode = DrivingMode.Normal
     self.myEcoModeFactor = 0.9
     self.mySafeModeFactor = 0.8
     self.myHighModeFactor = 1.2
+    self.drivingModeDetector = DrivingModeDetector()
+    self.mySafeFactor = 1.0
+
     self.tFollowGap1 = 1.1
     self.tFollowGap2 = 1.3
     self.tFollowGap3 = 1.45
@@ -104,29 +107,38 @@ class CarrotPlanner:
     self.cruiseMaxVals5 = 0.7
     self.cruiseMaxVals6 = 0.6
 
-
+    self.trafficLightDetectMode = 2 # 0: None, 1:Stop, 2:Stop&Go
     self.trafficState_carrot = 0
     self.carrot_stay_stop = False
 
     self.eco_over_speed = 4
     self.eco_target_speed = 0
 
-    self.desireState = 0.0    
+    self.desireState = 0.0
+    self.jerk_factor = 1.0
+    self.jerk_factor_apply = 1.0
 
 
   def _params_update(self):
     self.frame += 1
     self.params_count += 1
-    if self.params_count % 2 == 0:
-      self.myDrivingMode = self.params.get_int("MyDrivingMode")
+    if self.params_count % 10 == 0:
+      myDrivingMode = DrivingMode(self.params.get_int("MyDrivingMode"))
+      self.myDrivingModeAuto = self.params.get_int("MyDrivingModeAuto")
+      if self.myDrivingModeAuto > 0:
+        self.myDrivingMode = self.drivingModeDetector.get_mode()
+      else:
+        self.myDrivingMode = myDrivingMode
+
       self.mySafeFactor = 1.0
-      if self.myDrivingMode == 1: # eco
+      if self.myDrivingMode == DrivingMode.Eco: # eco
         self.mySafeFactor = self.myEcoModeFactor
-      elif self.myDrivingMode == 2: #safe
+      elif self.myDrivingMode == DrivingMode.Safe: #safe
         self.mySafeFactor = self.mySafeModeFactor
 
     if self.params_count == 10:
       self.myHighModeFactor = 1.2 #float(self.params.get_int("MyHighModeFactor")) / 100.
+      self.trafficLightDetectMode = self.params.get_int("TrafficLightDetectMode") # 0: None, 1:Stop, 2:Stop&Go
     elif self.params_count == 20:
       self.tFollowGap1 = self.params.get_float("TFollowGap1") / 100.
       self.tFollowGap2 = self.params.get_float("TFollowGap2") / 100.
@@ -146,22 +158,26 @@ class CarrotPlanner:
       self.comfortBrake = self.params.get_float("ComfortBrake") / 100.
 
     elif self.params_count >= 100:
-      
+
       self.params_count = 0
 
   def get_carrot_accel(self, v_ego):
     cruiseMaxVals = [self.cruiseMaxVals1, self.cruiseMaxVals2, self.cruiseMaxVals3, self.cruiseMaxVals4, self.cruiseMaxVals5, self.cruiseMaxVals6]
-    factor = self.myHighModeFactor if self.myDrivingMode == 4 else self.mySafeFactor
+    factor = self.myHighModeFactor if self.myDrivingMode == DrivingMode.High else self.mySafeFactor
     return interp(v_ego, A_CRUISE_MAX_BP_CARROT, cruiseMaxVals) * factor
 
   def get_T_FOLLOW(self, personality=log.LongitudinalPersonality.standard):
     if personality==log.LongitudinalPersonality.moreRelaxed:
+      self.jerk_factor = 1.0
       return self.tFollowGap4
     elif personality==log.LongitudinalPersonality.relaxed:
+      self.jerk_factor = 1.0
       return self.tFollowGap3
     elif personality==log.LongitudinalPersonality.standard:
+      self.jerk_factor = 1.0 if self.myDrivingMode == DrivingMode.Safe else 0.7
       return self.tFollowGap2
     elif personality==log.LongitudinalPersonality.aggressive:
+      self.jerk_factor = 1.0 if self.myDrivingMode == DrivingMode.Safe else 0.5
       return self.tFollowGap1
     else:
       raise NotImplementedError("Longitudinal personality not supported")
@@ -173,15 +189,19 @@ class CarrotPlanner:
       self.desireState = meta.desireState[3] if carState.leftBlinker else meta.desireState[4]
     else:
       self.desireState = 0.0
-  
+
   def dynamic_t_follow(self, t_follow, lead, desired_follow_distance):
 
-    if self.desireState > 0.9:
-      t_follow *= self.dynamicTFollowLC
+    self.jerk_factor_apply = self.jerk_factor
+    if self.desireState > 0.9:  # lane change state
+      t_follow *= self.dynamicTFollowLC   # 차선변경시 t_follow를 줄임.
+      self.jerk_factor_apply = self.jerk_factor * self.dynamicTFollowLC   # 차선변경시 jerk factor를 줄여 aggresive하게
     elif lead.status:      
       if self.dynamicTFollow > 0.0:
         gap_dist_adjust = clip((desired_follow_distance - lead.dRel) * self.dynamicTFollow, - 0.1, 1.0)
         t_follow += gap_dist_adjust
+        if gap_dist_adjust < 0:
+          self.jerk_factor_apply = self.jerk_factor * 0.5 # 전방차량을 따라갈때는 aggressive하게.
 
     return t_follow
 
@@ -199,11 +219,28 @@ class CarrotPlanner:
     if v_ego_kph < 1.0:
       stopSign = model_x < 20.0 and model_v < 10.0
     elif v_ego_kph < 82.0:
-      stopSign = model_x < d_rel - 3.0 and model_x < interp(v[0], [60/3.6, 80/3.6], [120.0, 150]) and ((model_v < 3.0) or (model_v < v[0]*0.7))  and abs(y[-1]) < 5.0
+      stopSign = (model_x < d_rel - 3.0 and
+                  model_x < interp(v[0], [60/3.6, 80/3.6], [120.0, 150]) and
+                  ((model_v < 3.0) or (model_v < v[0]*0.7)) and
+                  abs(y[-1]) < 5.0)
     else:
       stopSign = False
 
-    #self.stopSignCount = self.stopSignCount + 1 if (stopSign and (model_x > get_safe_obstacle_distance(v_ego, t_follow=0, comfort_brake=COMFORT_BRAKE, stop_distance=-1.0))) else 0
+    # self.stopSignCount = (
+    #   self.stopSignCount + 1
+    #   if (
+    #     stopSign
+    #     and (
+    #       model_x > get_safe_obstacle_distance(
+    #         v_ego,
+    #         t_follow=0,
+    #         comfort_brake=COMFORT_BRAKE,
+    #         stop_distance=-1.0,
+    #       )
+    #     )
+    #   )
+    #   else 0
+    # )
     self.stopSignCount = self.stopSignCount + 1 if stopSign else 0
     self.startSignCount = self.startSignCount + 1 if startSign and not stopSign else 0
 
@@ -213,7 +250,7 @@ class CarrotPlanner:
       self.trafficState = TrafficState.green
     else:
       self.trafficState = TrafficState.off
-  
+
   def _update_carrot_man(self, sm, v_ego_kph, v_cruise_kph):
     if sm.alive['carrotMan']:
       carrot_man = sm['carrotMan']
@@ -236,7 +273,7 @@ class CarrotPlanner:
         elif self.xState in [XState.e2eStop, XState.e2eStopped]:
           self.xState = XState.e2eCruise
           self.traffic_starting_count = 10.0 / DT_MDL
-      
+
       v_cruise_kph = min(v_cruise_kph, carrot_man.desiredSpeed)
 
     return v_cruise_kph
@@ -278,11 +315,22 @@ class CarrotPlanner:
     self.soft_hold_active = sm['carState'].softHoldActive # carrot 2
 
     self.comfort_brake = self.comfortBrake
-	
+
     v_ego = carstate.vEgo
     v_ego_kph = v_ego * CV.MS_TO_KPH
     v_ego_cluster = carstate.vEgoCluster
     v_ego_cluster_kph = v_ego_cluster * CV.MS_TO_KPH
+
+    if self.frame % 20 == 0: # every 1 sec
+      vLead = 0
+      aLead = 0
+      dRel = 200
+      if radarstate.leadOne.status:
+        vLead = radarstate.leadOne.vLead * CV.MS_TO_KPH
+        aLead = radarstate.leadOne.aLead
+        dRel = radarstate.leadOne.dRel
+
+      self.drivingModeDetector.update_data(v_ego_kph, vLead, carstate.aEgo, aLead, dRel)
 
     v_cruise_kph = self.cruise_eco_control(v_ego_cluster_kph, v_cruise_kph)
     v_cruise_kph = self._update_carrot_man(sm, v_ego_kph, v_cruise_kph)
@@ -304,9 +352,13 @@ class CarrotPlanner:
     #self.check_model_stopping(v, v_ego, self.xStop, y)
     self.check_model_stopping(v, v_ego, x[-1], y, radarstate.leadOne.dRel if lead_detected else 1000)
 
-    if self.myDrivingMode == 4:
+    if self.myDrivingMode == DrivingMode.High or self.trafficLightDetectMode == 0:
       self.trafficState = TrafficState.off
-    
+    if self.trafficState == TrafficState.green and self.trafficLightDetectMode == 1:  # Stopping only
+      self.trafficState = TrafficState.off
+    if abs(carstate.steeringAngleDeg) > 20:
+      self.trafficState = TrafficState.off
+
     #self.update_user_control()
 
     if carstate.gasPressed or carstate.brakePressed:
@@ -322,6 +374,7 @@ class CarrotPlanner:
       elif self.stopping_count == 0:
         if self.trafficState == TrafficState.green and not self.carrot_stay_stop and not carstate.leftBlinker:
           self.xState = XState.e2ePrepare
+          self.events.add(EventName.trafficSignGreen)
       self.stopping_count = max(0, self.stopping_count - 1)
       v_cruise = 0
     elif self.xState == XState.e2eStop:
@@ -374,20 +427,25 @@ class CarrotPlanner:
       self.user_stop_distance = max(0, self.user_stop_distance - v_ego * DT_MDL)
       self.actual_stop_distance = self.user_stop_distance
       self.xState = XState.e2eStop if self.user_stop_distance > 0 else XState.e2eStopped
-      
+
     mode = 'blended' if self.xState in [XState.e2ePrepare] else 'acc'
 
     self.comfort_brake *= self.mySafeFactor
     self.actual_stop_distance = max(0, self.actual_stop_distance - (v_ego * DT_MDL))
-    
+
     if stop_model_x == 1000.0: ##  e2eCruise, lead�ΰ��
       self.actual_stop_distance = 0.0
     elif self.actual_stop_distance > 0: ## e2eStop, e2eStopped�ΰ��..
       stop_model_x = 0.0
-      
-    #self.debugLongText = "XState({}),stop_x={:.1f},stopDist={:.1f},Traffic={}".format(str(self.xState), stop_x, self.actual_stop_distance, str(self.trafficState))
+
+    # self.debugLongText = (
+    #   f"XState({str(self.xState)})," +
+    #   f"stop_x={stop_x:.1f}," +
+    #   f"stopDist={self.actual_stop_distance:.1f}," +
+    #   f"Traffic={str(self.trafficState)}"
+    # )
     #��ȣ�� �������� self.xState.value
-      
+
     stop_dist =  stop_model_x + self.actual_stop_distance
     stop_dist = max(stop_dist, v_ego ** 2 / (self.comfort_brake * 2))
 
@@ -397,3 +455,24 @@ class CarrotPlanner:
     #return v_cruise, stop_dist, mode
 
     return v_cruise_kph
+
+
+class DrivingModeDetector:
+    def __init__(self):
+        self.congested = False
+        self.speed_threshold = 2  # (km/h)
+        self.accel_threshold = 1.5  # (m/s^2)
+        self.distance_threshold = 12  # (m)
+        self.lead_speed_exit_threshold = 20  # (km/h)
+
+    def update_data(self, my_speed, lead_speed, my_accel, lead_accel, distance):
+        # 1. 정체 조건: 앞차가 가까이 있고 정지된 상황
+        if distance <= self.distance_threshold and lead_speed <= self.speed_threshold:
+            self.congested = True
+
+        # 2. 주행 조건: 앞차가 가속하거나 빠르게 이동
+        if lead_accel > self.accel_threshold or my_speed > self.lead_speed_exit_threshold or distance >= 200:
+            self.congested = False
+
+    def get_mode(self):
+        return DrivingMode.Safe if self.congested else DrivingMode.Normal

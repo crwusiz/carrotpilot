@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # otisserv - Copyright (c) 2019-, Rick Lan, dragonpilot community, and a number of other of contributors.
-# Fleet Manager - [actuallylemoncurd](https://github.com/actuallylemoncurd), [AlexandreSato](https://github.com/alexandreSato), [ntegan1](https://github.com/ntegan1), [royjr](https://github.com/royjr), and [sunnyhaibin] (https://github.com/sunnypilot)
+# Fleet Manager - [actuallylemoncurd](https://github.com/actuallylemoncurd), [AlexandreSato](https://github.com/alexandreSato),
+# [ntegan1](https://github.com/ntegan1), [royjr](https://github.com/royjr), and [sunnyhaibin] (https://github.com/sunnypilot)
 # Almost everything else - ChatGPT
 # dirty PR pusher - mike8643
 #
@@ -22,20 +23,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import os
-import random
 import secrets
-import threading
-import time
 
-from flask import Flask, jsonify, render_template, Response, request, send_from_directory, session, redirect, url_for, abort
-import requests
-from requests.exceptions import ConnectionError
+from flask import Flask, jsonify, render_template, Response, request, send_from_directory, redirect, url_for, abort
 from openpilot.common.realtime import set_core_affinity
 import openpilot.selfdrive.frogpilot.fleetmanager.helpers as fleet
 from openpilot.system.hardware.hw import Paths
 from openpilot.common.swaglog import cloudlog
 import traceback
-from ftplib import FTP, error_perm
+from ftplib import FTP
 
 app = Flask(__name__)
 
@@ -87,7 +83,7 @@ def download_dcamera(route, segment):
 
 
 def upload_folder_to_ftp(local_folder, directory, remote_path):
-    from tqdm import tqdm  # tqdmÀ¸·Î ÁøÇà ¹Ù Ç¥½Ã
+    from tqdm import tqdm  # tqdmï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Ç¥ï¿½ï¿½
     ftp_server = "shind0.synology.me"
     ftp_port = 8021
     ftp_username = "carrotpilot"
@@ -109,14 +105,14 @@ def upload_folder_to_ftp(local_folder, directory, remote_path):
           print(f"Directory creation failed: {e}")
         ftp.cwd(remote_path)
 
-        # ·ÎÄÃ Æú´õÀÇ ¸ðµç ÆÄÀÏ °¡Á®¿À±â
+        # ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         files = [
             os.path.join(root, filename)
             for root, _, filenames in os.walk(local_folder)
             for filename in filenames
         ]
 
-        # tqdmÀ» »ç¿ëÇÑ ÁøÇà ¹Ù Ç¥½Ã
+        # tqdmï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ Ç¥ï¿½ï¿½
         with tqdm(total=len(files), desc="Uploading Files", unit="file") as pbar:
             for local_file in files:
                 filename = os.path.basename(local_file)
@@ -127,8 +123,8 @@ def upload_folder_to_ftp(local_folder, directory, remote_path):
                           print(f"Uploaded: {local_file} -> {filename}")
                   except Exception as e:
                       print(f"Failed to upload {local_file}: {e}")
-  
-                  pbar.update(1)  # ÁøÇà ¹Ù ¾÷µ¥ÀÌÆ®
+
+                  pbar.update(1)  # ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®
 
         ftp.quit()
         return True
@@ -141,8 +137,8 @@ def upload_carrot(route, segment):
     from openpilot.common.params import Params
 
     local_folder = Paths.log_root() + f"{route}--{segment}"
-    
-    # Æú´õ°¡ Á¸ÀçÇÏ´ÂÁö È®ÀÎ
+
+    # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ï¿½ï¿½ È®ï¿½ï¿½
     if not os.path.isdir(local_folder):
         print(f"Folder not found: {local_folder}")
         return abort(404, "Folder not found")
@@ -155,7 +151,7 @@ def upload_carrot(route, segment):
 
     directory = "routes " + car_selected + " " + Params().get("DongleId").decode('utf-8')
 
-    # FTP·Î Æú´õ¿Í ÆÄÀÏ ¾÷·Îµå ¼öÇà
+    # FTPï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½
     #remote_path = f"{directory}/{route}--{segment}"
     success = upload_folder_to_ftp(local_folder, directory, f"{route}--{segment}")
 
@@ -178,7 +174,7 @@ def route(route):
     return render_template("error.html", error="route not found")
 
   if str(request.query_string) == "b''":
-    query_segment = str("0")
+    query_segment = "0"
     query_type = "qcamera"
   else:
     query_segment = (str(request.query_string).split(","))[0][2:]
@@ -203,7 +199,7 @@ def footage():
     fleet.video_to_img(input_path, output_path)
     gif_path = route_path + "--0/preview.gif"
     gifs.append(gif_path)
-  zipped = zip(route_paths, gifs)
+  zipped = zip(route_paths, gifs, strict=False)
   return render_template("footage.html", zipped=zipped)
 
 @app.route("/preserved/")
@@ -222,7 +218,7 @@ def preserved():
     gif_path = segment + "/preview.gif"
     gifs.append(gif_path)
 
-  zipped = zip(route_paths, gifs, segments)
+  zipped = zip(route_paths, gifs, segments, strict=False)
   return render_template("preserved.html", zipped=zipped)
 
 @app.route("/screenrecords/")
@@ -277,8 +273,8 @@ def addr_input():
   s_token = fleet.get_app_token()
   gmap_key = fleet.get_gmap_key()
   PrimeType = fleet.get_PrimeType()
-  lon = float(0.0)
-  lat = float(0.0)
+  lon = 0.0
+  lat = 0.0
   if request.method == 'POST':
     valid_addr = False
     postvars = request.form.to_dict()
@@ -308,9 +304,13 @@ def addr_input():
       return redirect(url_for('amap_addr_input'))
   elif fleet.get_nav_active():
     if SearchInput == 2:
-      return render_template("nonprime.html", gmap_key=gmap_key, lon=lon, lat=lat, home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
+      return render_template("nonprime.html",
+                             gmap_key=gmap_key, lon=lon, lat=lat,
+                             home=preload[0],work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
     else:
-      return render_template("nonprime.html", gmap_key=None, lon=None, lat=None, home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
+      return render_template("nonprime.html",
+                             gmap_key=None, lon=None, lat=None,
+                             home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
   elif token == "" or token is None:
     return redirect(url_for('public_token_input'))
   elif s_token == "" or s_token is None:
@@ -320,9 +320,13 @@ def addr_input():
     if gmap_key == "" or gmap_key is None:
       return redirect(url_for('gmap_key_input'))
     else:
-      return render_template("addr.html", gmap_key=gmap_key, lon=lon, lat=lat, home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
+      return render_template("addr.html",
+                             gmap_key=gmap_key, lon=lon, lat=lat,
+                             home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
   else:
-      return render_template("addr.html", gmap_key=None, lon=None, lat=None, home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
+      return render_template("addr.html",
+                             gmap_key=None, lon=None, lat=None,
+                             home=preload[0], work=preload[1], fav1=preload[2], fav2=preload[3], fav3=preload[4])
 
 @app.route("/nav_confirmation", methods=['GET', 'POST'])
 def nav_confirmation():

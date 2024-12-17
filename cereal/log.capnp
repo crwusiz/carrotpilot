@@ -1113,7 +1113,7 @@ struct ModelDataV2 {
   action @26: Action;
 
   gpuExecutionTimeDEPRECATED @17 :Float32;
-  navEnabledDEPRECATED @22 :Bool;
+  navEnabled @22 :Bool;
   locationMonoTimeDEPRECATED @24 :UInt64;
   lateralPlannerSolution @25: LateralPlannerSolution;
 
@@ -1287,6 +1287,7 @@ struct LongitudinalPlan @0xe00b5b3eba12876c {
   jTarget @45: Float32;
   tFollow @46: Float32;
   desiredDistance @47: Float32;
+  myDrivingMode @48: Int32;
 
   solverExecutionTime @35 :Float32;
 
@@ -2659,7 +2660,7 @@ struct Event {
     driverStateDEPRECATED @59 :DriverStateDEPRECATED;
     sensorEventsDEPRECATED @11 :List(SensorEventData);
     lateralPlan @64 :LateralPlan;
-    navModelDEPRECATED @104 :NavModelData;
+    navModel @104 :NavModelData;
     uiPlanDEPRECATED @106 :UiPlan;
     liveLocationKalmanDEPRECATED @72 :LiveLocationKalman;
     liveTracksDEPRECATED @16 :List(LiveTracksDEPRECATED);

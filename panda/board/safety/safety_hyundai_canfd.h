@@ -71,6 +71,8 @@ const CanMsg HYUNDAI_CANFD_HDA2_LONG_TX_MSGS[] = {
   {512, 0, 8}, // ADRV_0x200
   {1187, 2, 8}, // 4A3
   {1204, 2, 8}, // 4B4
+
+  {203, 0, 24}, // CB
 };
 
 const CanMsg HYUNDAI_CANFD_HDA1_TX_MSGS[] = {
@@ -181,8 +183,10 @@ const int HYUNDAI_PARAM_CANFD_HDA2_ALT_STEERING = 128;
 bool hyundai_canfd_alt_buttons = false;
 bool hyundai_canfd_hda2_alt_steering = false;
 
-int canfd_tx_addr[32] = { 80, 81, 272, 282, 298, 352, 353, 354, 442, 485, 416, 437, 506, 474, 480, 490, 512, 676, 866, 837, 1402, 908, 1848, 1187, 1204, 0, };
+int canfd_tx_addr[32] = { 80, 81, 272, 282, 298, 352, 353, 354, 442, 485, 416, 437, 506, 474, 480, 490, 512, 676, 866, 837, 1402, 908, 1848, 1187, 1204, 203, 0, };
+int canfd_tx_addr2[32] = { 0x4a3, 0 };
 uint32_t canfd_tx_time[32] = { 0, };
+uint32_t canfd_tx_time2[32] = { 0, };
 
 int hyundai_canfd_hda2_get_lkas_addr(void) {
   return hyundai_canfd_hda2_alt_steering ? 0x110 : 0x50;
@@ -367,19 +371,20 @@ static bool hyundai_canfd_tx_hook(const CANPacket_t *to_send) {
   }
 
   for (int i = 0; canfd_tx_addr[i] > 0; i++) {
-      if(addr == canfd_tx_addr[i]) canfd_tx_time[i] = (tx) ? microsecond_timer_get() : 0;
+      if (addr == canfd_tx_addr[i]) canfd_tx_time[i] = (tx) ? microsecond_timer_get() : 0;
+  }
+  for (int i = 0; canfd_tx_addr2[i] > 0; i++) {
+      if (addr == canfd_tx_addr2[i]) canfd_tx_time2[i] = (tx) ? microsecond_timer_get() : 0;
   }
 
   return tx;
 }
 
 int addr_list1[128] = { 0, };
-int addr_list_len1[128] = { 0, };
 int addr_list_count1 = 0;
 int addr_list2[128] = { 0, };
-int addr_list_len2[128] = { 0, };
 int addr_list_count2 = 0;
-uint32_t last_ts_lkas_msg_acan = 0;
+#define OP_CAN_SEND_TIMEOUT 100000
 
 static int hyundai_canfd_fwd_hook(int bus_num, int addr) {
   int bus_fwd = -1;
@@ -387,23 +392,25 @@ static int hyundai_canfd_fwd_hook(int bus_num, int addr) {
 
   if (bus_num == 0) {
     bus_fwd = 2;
+    for (int i = 0; canfd_tx_addr2[i] > 0; i++) {
+        if (addr == canfd_tx_addr2[i] && (now - canfd_tx_time2[i]) < OP_CAN_SEND_TIMEOUT) {
+            bus_fwd = -1;
+            break;
+        }
+    }
   }
-  extern uint8_t to_push_data_len_code;
   if (bus_num == 1) {
       int i;
       for (i = 0; i < addr_list_count1 && i < 127; i++) {
           if (addr_list1[i] == addr) {
-              addr_list_len1[i] = to_push_data_len_code;
               break;
           }
       }
       if (i == addr_list_count1 && i!=127) {
           addr_list1[addr_list_count1] = addr;
-          addr_list_len1[addr_list_count1] = to_push_data_len_code;
           addr_list_count1++;
           print("!!!!! bus1_list=");
           for (int j = 0; j < addr_list_count1; j++) { putui((uint32_t)addr_list1[j]); print(","); }
-          //for (int j = 0; j < addr_list_count1; j++) { putui((uint32_t)addr_list1[j]); print("("); putui((uint32_t)addr_list_len1[j]); print(") "); }
           print("\n");
       }
   }
@@ -411,23 +418,20 @@ static int hyundai_canfd_fwd_hook(int bus_num, int addr) {
       int i;
       for (i = 0; i < addr_list_count2 && i < 127; i++) {
           if (addr_list2[i] == addr) {
-              addr_list_len2[i] = to_push_data_len_code;
               break;
           }
       }
       if (i == addr_list_count2 && i != 127) {
           addr_list2[addr_list_count2] = addr;
-          addr_list_len2[addr_list_count2] = to_push_data_len_code;
           addr_list_count2++;
           print("@@@@ bus2_list=");
           for (int j = 0; j < addr_list_count2; j++) { putui((uint32_t)addr_list2[j]); print(","); }
-          //for (int j = 0; j < addr_list_count2; j++) { putui((uint32_t)addr_list2[j]); print("("); putui((uint32_t)addr_list_len2[j]); print(") "); }
           print("\n");
       }
 #if 1
       bus_fwd = 0;
       for (int i = 0; canfd_tx_addr[i] > 0; i++) {
-          if (addr == canfd_tx_addr[i] && (now - canfd_tx_time[i]) < 200000) {
+          if (addr == canfd_tx_addr[i] && (now - canfd_tx_time[i]) < OP_CAN_SEND_TIMEOUT) {
               bus_fwd = -1;
               break;
           }

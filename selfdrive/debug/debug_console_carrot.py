@@ -19,7 +19,7 @@ if __name__ == "__main__":
   while True:
     if time.monotonic() - start_time > timeout:
       print("timeout")
-      break;
+      break
     try:
       port_number = int(os.getenv("PORT", "0"))
       claim = os.getenv("CLAIM") is not None
@@ -28,7 +28,7 @@ if __name__ == "__main__":
       if os.getenv("SERIAL"):
         serials = [x for x in serials if x == os.getenv("SERIAL")]
 
-      pandas = list([Panda(x, claim=claim) for x in serials])
+      pandas = [Panda(x, claim=claim) for x in serials]
 
       if not len(pandas):
         sys.exit("  no pandas found\n")
@@ -40,12 +40,12 @@ if __name__ == "__main__":
       while True:
         if time.monotonic() - start_time > timeout:
           print("timeout")
-          break;
+          break
         for i, panda in enumerate(pandas):
           while True:
             if time.monotonic() - start_time > timeout:
               print("timeout")
-              break;
+              break
             ret = panda.serial_read(port_number)
             if len(ret) > 0:
               sys.stdout.write(f"[{i}][" + setcolor[i] + ret.decode('ascii') + unsetcolor + "]")
