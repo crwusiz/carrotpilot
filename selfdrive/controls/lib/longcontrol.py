@@ -57,8 +57,8 @@ class LongControl:
                              (CP.longitudinalTuning.kiBP, CP.longitudinalTuning.kiV),
                              k_f=CP.longitudinalTuning.kf, rate=1 / DT_CTRL)
     self.last_output_accel = 0.0
-    
-    
+
+
     self.params = Params()
     self.readParamCount = 0
     self.stopping_accel = 0
@@ -81,7 +81,7 @@ class LongControl:
       j_target_now = long_plan.jerks[0] #interp(t_since_plan, ModelConstants.T_IDXS[:CONTROL_N], long_plan.jerks)
     else:
       v_target_now = a_target_now = j_target_now = 0.0
- 
+
     self.readParamCount += 1
     if self.readParamCount >= 100:
       self.readParamCount = 0
@@ -104,14 +104,14 @@ class LongControl:
                                                        CS.cruiseState.standstill, CS.aEgo, self.stopping_accel)
     if active and soft_hold_active:
       self.long_control_state = LongCtrlState.stopping
-      
+
     if self.long_control_state == LongCtrlState.off:
       self.reset()
       output_accel = 0.
 
     elif self.long_control_state == LongCtrlState.stopping:
       output_accel = self.last_output_accel
-      
+
       if soft_hold_active:
         output_accel = self.CP.stopAccel
 

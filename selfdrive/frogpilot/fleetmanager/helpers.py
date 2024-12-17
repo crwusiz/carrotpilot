@@ -1,5 +1,6 @@
 # otisserv - Copyright (c) 2019-, Rick Lan, dragonpilot community, and a number of other of contributors.
-# Fleet Manager - [actuallylemoncurd](https://github.com/actuallylemoncurd), [AlexandreSato](https://github.com/alexandreSato), [ntegan1](https://github.com/ntegan1), [royjr](https://github.com/royjr), and [sunnyhaibin] (https://github.com/sunnypilot)
+# Fleet Manager - [actuallylemoncurd](https://github.com/actuallylemoncurd), [AlexandreSato](https://github.com/alexandreSato),
+# [ntegan1](https://github.com/ntegan1), [royjr](https://github.com/royjr), and [sunnyhaibin] (https://github.com/sunnypilot)
 # Almost everything else - ChatGPT
 # dirty PR pusher - mike8643
 #
@@ -25,22 +26,18 @@ import math
 import os
 import requests
 import subprocess
-import time
 # otisserv conversion
-from common.params import Params
-from flask import render_template, request, session
-from functools import wraps
 from pathlib import Path
 
+from openpilot.common.params import Params
 from openpilot.system.hardware import PC
 from openpilot.system.hardware.hw import Paths
 from openpilot.system.loggerd.uploader import listdir_by_creation
-from tools.lib.route import SegmentName
-from typing import List
+from openpilot.tools.lib.route import SegmentName
 from openpilot.system.loggerd.xattr_cache import getxattr
 
 # otisserv conversion
-from urllib.parse import parse_qs, quote
+from urllib.parse import quote
 
 pi = 3.1415926535897932384626
 x_pi = 3.14159265358979324 * 3000.0 / 180.0
@@ -116,7 +113,7 @@ def preserved_routes():
 def has_preserve_xattr(d: str) -> bool:
   return getxattr(os.path.join(Paths.log_root(), d), PRESERVE_ATTR_NAME) == PRESERVE_ATTR_VALUE
 
-def get_preserved_segments(dirs_by_creation: List[str]) -> List[str]:
+def get_preserved_segments(dirs_by_creation: list[str]) -> list[str]:
   preserved = []
   for n, d in enumerate(filter(has_preserve_xattr, reversed(dirs_by_creation))):
     if n == PRESERVE_COUNT:
@@ -302,7 +299,7 @@ def search_addr(postvars, lon, lat, valid_addr, token):
       query = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{addr_encoded}.json?access_token={token}&limit=1"
       # focus on place around last gps position
       lngi, lati = get_last_lon_lat()
-      query += "&proximity=%s,%s" % (lngi, lati)
+      query += f"&proximity={lngi},{lati}"
       r = requests.get(query)
       if r.status_code != 200:
         return (addr, lon, lat, valid_addr, token)
@@ -339,7 +336,7 @@ def nav_confirmed(postvars):
     name = postvars.get("name") if postvars.get("name") is not None else ""
     if params.get_int("SearchInput") == 1:
       lng, lat = gcj02towgs84(lng, lat)
-    params.put("NavDestination", "{\"latitude\": %f, \"longitude\": %f, \"place_name\": \"%s\"}" % (lat, lng, name))
+    params.put("NavDestination", f'{{"latitude": {lat:.6f}, "longitude": {lng:.6f}, "place_name": "{name}"}}')
     if name == "":
       name =  str(lat) + "," + str(lng)
     new_dest = {"latitude": float(lat), "longitude": float(lng), "place_name": name}
@@ -362,15 +359,15 @@ def nav_confirmed(postvars):
         type_label_ids["recent"].append(idx)
       idx += 1
     if save_type == "recent":
-      id = None
+      dest_id = None
       if len(type_label_ids["recent"]) > 10:
         dests.pop(type_label_ids["recent"][-1])
     else:
-      id = type_label_ids[save_type]
-    if id is None:
+      dest_id = type_label_ids[save_type]
+    if dest_id is None:
       dests.insert(0, new_dest)
     else:
-      dests[id] = new_dest
+      dests[dest_id] = new_dest
     params.put("ApiCache_NavDestinations", json.dumps(dests).rstrip("\n\r"))
 
 def public_token_input(postvars):

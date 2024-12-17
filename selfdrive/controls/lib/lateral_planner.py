@@ -6,7 +6,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.lateral_mpc_lib.lat_mpc import LateralMpc
 from openpilot.selfdrive.controls.lib.lateral_mpc_lib.lat_mpc import N as LAT_MPC_N
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N, MIN_SPEED, get_speed_error
-from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
+# from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
 import cereal.messaging as messaging
 from cereal import log
 
@@ -79,11 +79,16 @@ class LateralPlanner:
     self.lat_mpc.reset(x0=self.x0)
 
   def update(self, sm):
+    global PATH_COST, LATERAL_ACCEL_COST, LATERAL_JERK_COST, STEERING_RATE_COST
     self.readParams -= 1
     if self.readParams <= 0:
       self.readParams = 100
       self.useLaneLineSpeedApply = self.params.get_int("UseLaneLineSpeedApply")
       self.pathOffset = 0.0 #float(self.params.get_int("PathOffset")) * 0.01
+      PATH_COST = self.params.get_float("LatMpcPathCost") * 0.01
+      LATERAL_ACCEL_COST = self.params.get_float("LatMpcAccelCost") * 0.01
+      LATERAL_JERK_COST = self.params.get_float("LatMpcJerkCost") * 0.01
+      STEERING_RATE_COST = self.params.get_float("LatMpcSteeringRateCost")
 
     # clip speed , lateral planning is not possible at 0 speed
     measured_curvature = sm['controlsState'].curvature
@@ -209,15 +214,16 @@ class LateralPlanner:
     #plan_send.lateralPlan.dPathWLinesY = [float(y) for y in self.d_path_w_lines_xyz[:, 1]]
     #lateralPlan.laneWidthLeft = float(self.DH.lane_width_left)
     #lateralPlan.laneWidthRight = float(self.DH.lane_width_right)
-    
+
     self.x_sol = self.lat_mpc.x_sol
 
-    debugText = "{} | {:.1f}m | {:.1f}m | {:.1f}m | {}".format(
-      "lanemode" if self.lanelines_active else "laneless",
-      self.LP.lane_width_left,
-      self.LP.lane_width,
-      self.LP.lane_width_right,
-      "offset={:.1f}cm turn={:.0f}km/h".format(self.LP.offset_total*100.0, clip(self.curve_speed, -200, 200)) if self.lanelines_active else "")
+    debugText = (
+      f"{'lanemode' if self.lanelines_active else 'laneless'} | " +
+      f"{self.LP.lane_width_left:.1f}m | " +
+      f"{self.LP.lane_width:.1f}m | " +
+      f"{self.LP.lane_width_right:.1f}m | " +
+      f"{f'offset={self.LP.offset_total * 100.0:.1f}cm turn={clip(self.curve_speed, -200, 200):.0f}km/h' if self.lanelines_active else ''}"
+    )
 
     lateralPlan.latDebugText = debugText
     #lateralPlan.latDebugText = self.latDebugText
@@ -228,4 +234,4 @@ class LateralPlanner:
 
     pm.send('lateralPlan', plan_send)
 
-    
+

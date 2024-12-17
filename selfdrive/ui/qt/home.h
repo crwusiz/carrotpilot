@@ -53,6 +53,7 @@ signals:
 public slots:
   void offroadTransition(bool offroad);
   void showSidebar(bool show);
+  void showMapPanel(bool show);
 
 protected:
   void mousePressEvent(QMouseEvent* e) override;

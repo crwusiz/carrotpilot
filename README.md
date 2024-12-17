@@ -2,6 +2,10 @@
 
 <h1>carrotpilot</h1>
 
+<h3>
+  <a href="https://g4iwnl.gitbook.io/carrotpilot">Manual</a>
+</h3>
+
 ![image](https://github.com/user-attachments/assets/beb02fee-f755-48b6-b565-fd09a933db43)
 
 

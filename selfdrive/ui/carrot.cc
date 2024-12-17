@@ -877,6 +877,7 @@ private:
     QString szSdiDescr = "";
     QString atc_type;
     QString szPosRoadName = "";
+    QString szTBTMainText = "";
 
 protected:
     QPointF navi_turn_point[2];
@@ -889,7 +890,7 @@ protected:
             SubMaster& sm = *(s->sm);
 
             const auto carrot_man = sm["carrotMan"].getCarrotMan();
-            QString szTBTMainText = QString::fromStdString(carrot_man.getSzTBTMainText());
+            szTBTMainText = QString::fromStdString(carrot_man.getSzTBTMainText());
 
             const cereal::ModelDataV2::Reader& model = sm["modelV2"].getModelV2();
             const auto road_edges = model.getRoadEdges();
@@ -1013,6 +1014,7 @@ protected:
         }
 	}
     void drawTurnInfoHud(const UIState* s) {
+      if (s->fb_w < 1200) return;
 #ifdef __UI_TEST
         active_carrot = 2;
         nGoPosDist = 500000;
@@ -1025,19 +1027,29 @@ protected:
 
         if (active_carrot <= 1) return;
         if (nGoPosDist > 0 && nGoPosTime > 0);
-		else return;
+		    else return;
 
         //if (xDistToTurn <= 0 || nGoPosDist <= 0) return;
         char str[128] = "";
 
         int tbt_x = s->fb_w - 800;
-        int tbt_y = s->fb_h - 300;
+        int tbt_y = s->fb_h - 250;
         NVGcolor stroke_color = COLOR_WHITE;
-        ui_fill_rect(s->vg, { tbt_x, tbt_y - 60, 790, 240 + 60 }, COLOR_BLACK_ALPHA(120), 30, 2, &stroke_color);
-        if (szPosRoadName.length() > 0) {
-            nvgTextAlign(s->vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
-            ui_draw_text(s, tbt_x + 90, tbt_y - 15, szPosRoadName.toStdString().c_str(), 30, COLOR_WHITE, BOLD);
-            //ui_draw_text(s, tbt_x + 190, tbt_y - 5, szPosRoadName.toStdString().c_str(), 40, COLOR_WHITE, BOLD);
+        if (s->scene._current_carrot_display == 3) {
+          ui_fill_rect(s->vg, { tbt_x, 5, 790, s->fb_h - 15 }, COLOR_BLACK_ALPHA(120), 30, 2, &stroke_color);
+        }
+        else {
+          ui_fill_rect(s->vg, { tbt_x, tbt_y - 60, 790, 240 + 60 }, COLOR_BLACK_ALPHA(120), 30, 2, &stroke_color);
+        }
+        if (szTBTMainText.length() > 0) {
+          nvgTextAlign(s->vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
+          ui_draw_text(s, tbt_x + 20, tbt_y - 15, szTBTMainText.toStdString().c_str(), 40, COLOR_WHITE, BOLD);
+          //ui_draw_text(s, tbt_x + 190, tbt_y - 5, szPosRoadName.toStdString().c_str(), 40, COLOR_WHITE, BOLD);
+        }
+        if (false && szPosRoadName.length() > 0) {
+          nvgTextAlign(s->vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
+          ui_draw_text(s, tbt_x + 90, tbt_y - 15, szPosRoadName.toStdString().c_str(), 30, COLOR_WHITE, BOLD);
+          //ui_draw_text(s, tbt_x + 190, tbt_y - 5, szPosRoadName.toStdString().c_str(), 40, COLOR_WHITE, BOLD);
         }
 
         if(xTurnInfo > 0) {
@@ -1109,6 +1121,7 @@ public:
         nGoPosTime = carrot_man.getNGoPosTime();
         szSdiDescr = QString::fromStdString(carrot_man.getSzSdiDescr());
         szPosRoadName = QString::fromStdString(carrot_man.getSzPosRoadName());
+        szTBTMainText = QString::fromStdString(carrot_man.getSzTBTMainText());
 
 #ifdef __UI_TEST
         active_carrot = 2;
@@ -1838,6 +1851,10 @@ private:
 #include <QJsonValue>
 #include <QJsonArray>
 
+typedef struct {
+    float x, y, d, v, y_rel, v_lat, radar;
+} lead_vertex_data;
+
 char    carrot_man_debug[128] = "";
 class DrawCarrot : public QObject {
     Q_OBJECT
@@ -1860,6 +1877,7 @@ public:
     int     trafficState_carrot = 0;
     int     active_carrot = 0;
     float   xTarget = 0.0;
+    int     myDrivingMode = 1;
 
     QString szPosRoadName = "";
     int     nRoadLimitSpeed = 30;
@@ -1868,6 +1886,9 @@ public:
     QPointF nav_path_vertex[150];
     QPointF nav_path_vertex_xy[150];
     int     nav_path_vertex_count = 0;
+    bool    nav_path_display = false;
+
+    std::vector<lead_vertex_data> lead_vertices_side;
 
     void updateState(UIState *s) {
         const SubMaster& sm = *(s->sm);
@@ -1882,8 +1903,10 @@ public:
         const auto lp = sm["longitudinalPlan"].getLongitudinalPlan();
         const auto carrot_man = sm["carrotMan"].getCarrotMan();
         const cereal::ModelDataV2::Reader& model = sm["modelV2"].getModelV2();
-        auto lead_one = sm["radarState"].getRadarState().getLeadOne();
+        const auto radar_state = sm["radarState"].getRadarState();
+        auto lead_one = radar_state.getLeadOne();
         auto model_position = model.getPosition();
+        const auto lane_lines = model.getLaneLines();
 
         if (!cs_alive || !car_control_alive || !car_state_alive || !lp_alive) return;
         auto selfdrive_state = sm["selfdriveState"].getSelfdriveState();
@@ -1905,26 +1928,27 @@ public:
             trafficState_carrot = carrot_man.getTrafficState();
             const auto velocity = model.getVelocity();
 
-            QString naviPaths = QString::fromStdString(carrot_man.getNaviPaths());
-            QStringList pairs = naviPaths.split(";");
-            nav_path_vertex_count = 0;
-            const auto lane_lines = model.getLaneLines();
-            int max_z = lane_lines[2].getZ().size();
-            float z_offset = 0.0;
-            foreach(const QString & pair, pairs) {
+            if (nav_path_display) {
+              QString naviPaths = QString::fromStdString(carrot_man.getNaviPaths());
+              QStringList pairs = naviPaths.split(";");
+              nav_path_vertex_count = 0;
+              int max_z = lane_lines[2].getZ().size();
+              float z_offset = 0.0;
+              foreach(const QString & pair, pairs) {
                 QStringList xy = pair.split(",");  // ","로 x와 y 구분                
                 if (xy.size() == 3) {
-                    //printf("coords = x: %.1f, y: %.1f, d:%.1f\n", xy[0].toFloat(), xy[1].toFloat(), xy[2].toFloat());
-                    float x = xy[0].toFloat();
-                    float y = xy[1].toFloat();
-                    float d = xy[2].toFloat();                    
-                    int idx = get_path_length_idx(lane_lines[2], d);
+                  //printf("coords = x: %.1f, y: %.1f, d:%.1f\n", xy[0].toFloat(), xy[1].toFloat(), xy[2].toFloat());
+                  float x = xy[0].toFloat();
+                  float y = xy[1].toFloat();
+                  float d = xy[2].toFloat();
+                  int idx = get_path_length_idx(lane_lines[2], d);
 
-                    if (idx >= max_z) z_offset -= 0.05;
-                    nav_path_vertex_xy[nav_path_vertex_count] = QPointF(y, -x);
-                    _model->mapToScreen((x<3.0) ? 5.0 : x, y, lane_lines[2].getZ()[idx] + z_offset, &nav_path_vertex[nav_path_vertex_count++]);
-                    if(nav_path_vertex_count >= 150) break;
+                  if (idx >= max_z) z_offset -= 0.05;
+                  nav_path_vertex_xy[nav_path_vertex_count] = QPointF(y, -x);
+                  _model->mapToScreen((x < 3.0) ? 5.0 : x, y, lane_lines[2].getZ()[idx] + z_offset, &nav_path_vertex[nav_path_vertex_count++]);
+                  if (nav_path_vertex_count >= 150) break;
                 }
+              }
             }
             auto meta = sm["modelV2"].getModelV2().getMeta();
             QString desireLog = QString::fromStdString(meta.getDesireLog());
@@ -1951,6 +1975,7 @@ public:
         xState = lp.getXState();
         trafficState = lp.getTrafficState();
         xTarget = lp.getXTarget();
+        myDrivingMode = lp.getMyDrivingMode();
 
         s->max_distance = std::clamp(*(model_position.getX().end() - 1),
             MIN_DRAW_DISTANCE, MAX_DRAW_DISTANCE);
@@ -1959,7 +1984,68 @@ public:
             const float lead_d = lead_one.getDRel();
             s->max_distance = std::clamp((float)lead_d, 0.0f, s->max_distance);
         }
+
+        lead_vertices_side.clear();
+        for (auto const& rs : { radar_state.getLeadsLeft(), radar_state.getLeadsRight(), radar_state.getLeadsCenter() }) {
+            for (auto const& l : rs) {
+                lead_vertex_data vd;
+                QPointF vtmp;
+                float z = lane_lines[2].getZ()[get_path_length_idx(lane_lines[2], l.getDRel())];
+                if (_model->mapToScreen(l.getDRel(), -l.getYRel(), z - 0.61, &vtmp)) {
+                    vd.x = vtmp.x();
+                    vd.y = vtmp.y();
+                    //printf("(%.1f,%.1f,%.1f) -> (%.1f, %.1f)\n", l.getDRel(), -l.getYRel(), z, vd.x, vd.y);
+                    vd.d = l.getDRel();
+                    vd.v = l.getVLeadK();
+                    vd.y_rel = l.getDPath();// l.getYRel();
+                    vd.v_lat = l.getVLat();
+                    vd.radar = l.getRadar();
+                    lead_vertices_side.push_back(vd);
+                }
+            }
+        }
 	}
+    void drawRadarInfo(UIState* s) {
+        char str[128];
+        int show_radar_info = params.getInt("ShowRadarInfo");
+        if (show_radar_info > 0) {
+            int wStr = 40;
+            for (auto const& vrd : lead_vertices_side) {
+                auto [rx, ry, rd, rv, ry_rel, v_lat, radar] = vrd;
+
+                if (rv < -1.0 || rv > 1.0) {
+                    sprintf(str, "%.0f", rv * 3.6);
+                    wStr = 35 * (strlen(str) + 0);
+                    ui_fill_rect(s->vg, { (int)(rx - wStr / 2), (int)(ry - 35), wStr, 42 }, (!radar) ? COLOR_BLUE : (rv > 0.) ? COLOR_GREEN : COLOR_RED, 15);
+                    ui_draw_text(s, rx, ry, str, 40, COLOR_WHITE, BOLD);
+                    if (show_radar_info >= 2) {
+                        sprintf(str, "%.1f", ry_rel);
+                        ui_draw_text(s, rx, ry - 40, str, 30, COLOR_WHITE, BOLD);
+                        sprintf(str, "%.2f", v_lat);
+                        //sprintf(str, "%.1f", rd);
+                        ui_draw_text(s, rx, ry + 30, str, 30, COLOR_WHITE, BOLD);
+                    }
+                }
+#if 0
+                else if (v_lat < -1.0 || v_lat > 1.0) {
+                    sprintf(str, "%.0f", (rv + v_lat) * 3.6);
+                    wStr = 35 * (strlen(str) + 0);
+                    ui_fill_rect(s->vg, { (int)(rx - wStr / 2), (int)(ry - 35), wStr, 42 }, COLOR_ORANGE, 15);
+                    ui_draw_text(s, rx, ry, str, 40, COLOR_WHITE, BOLD);
+                    if (s->show_radar_info >= 2) {
+                        sprintf(str, "%.1f", ry_rel);
+                        ui_draw_text(s, rx, ry - 40, str, 30, COLOR_WHITE, BOLD);
+                    }
+                }
+#endif
+                else if (show_radar_info >= 3) {
+                    strcpy(str, "*");
+                    ui_draw_text(s, rx, ry, str, 40, COLOR_WHITE, BOLD);
+                }
+            }
+        }
+
+    }
     void drawDebug(UIState* s) {
         if (params.getInt("ShowDebugUI") > 1) {
             nvgTextAlign(s->vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM);
@@ -1967,6 +2053,7 @@ public:
         }
     }
     void drawNaviPath(UIState* s) {
+      if (!nav_path_display) return;
 #if 0
         if (nav_path_vertex_count > 0) {
 			nvgBeginPath(s->vg);
@@ -1993,6 +2080,7 @@ public:
                 nvgFill(s->vg);
 			}
         }
+
 #else
         if (nav_path_vertex_count) {
             nvgBeginPath(s->vg);
@@ -2102,7 +2190,7 @@ public:
 
         // draw gap info
         char driving_mode_str[32] = "연비";
-        int driving_mode = params.getInt("MyDrivingMode");
+        int driving_mode = myDrivingMode;// params.getInt("MyDrivingMode");
         NVGcolor mode_color = COLOR_GREEN_ALPHA(210);
         NVGcolor text_color = COLOR_WHITE;
         switch (driving_mode) {
@@ -2369,6 +2457,9 @@ public:
         }
     }
     void drawDeviceInfo(const UIState* s) {
+#ifdef WSL2
+        return;
+#endif
         makeDeviceInfo(s);
         if (params.getInt("ShowDebugUI") == 0) return;
 
@@ -2380,7 +2471,107 @@ public:
     }
 
 };
+#if 0
+#include "msgq/visionipc/visionipc_server.h"
+#include <QImage>
+#include <QPainter>
+#include <QPainterPath> // 추가
 
+class MapRenderer {
+public:
+    MapRenderer() : image_data(WIDTH* HEIGHT * 4) { initialize(); }
+
+    void initialize() {
+        const int NUM_VIPC_BUFFERS = 4;
+
+        vipc_server = std::make_unique<VisionIpcServer>("navd");
+        vipc_server->create_buffers(VisionStreamType::VISION_STREAM_MAP, NUM_VIPC_BUFFERS, WIDTH, HEIGHT);
+        vipc_server->start_listener();
+    }
+
+    void render(QPointF nav_path_vertex_xy[], int vertex_count) {
+        // QImage 생성 및 초기화
+        QImage image(WIDTH, HEIGHT, QImage::Format_RGBA8888); // RGBA 형식
+        image.fill(Qt::black); // 검정 배경
+
+        QPainter painter(&image);
+        painter.setPen(QPen(Qt::white, 15)); // 경로 색상 및 두께 설정
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        // 경로 그리기
+        if (vertex_count > 2) {
+            QPainterPath path;
+            path.moveTo(nav_path_vertex_xy[0].x() * pixels_per_meter + WIDTH / 2.0,
+                nav_path_vertex_xy[0].y() * pixels_per_meter + HEIGHT / 2.0);
+            for (int i = 1; i < vertex_count; ++i) {
+                path.lineTo(nav_path_vertex_xy[i].x() * pixels_per_meter + WIDTH / 2.0,
+                    nav_path_vertex_xy[i].y() * pixels_per_meter + HEIGHT / 2.0);
+            }
+            painter.drawPath(path);
+        }
+        painter.end();
+
+        // QImage 데이터를 NanoVG에 전달
+        memcpy(image_data.data(), image.bits(), WIDTH * HEIGHT * 4); // RGBA 크기
+    }
+
+    bool publish() {
+        double cur_t = millis_since_boot();
+        if (cur_t > vipc_sent_t + 500) {
+            vipc_sent_t = cur_t;
+
+            // Vision IPC 버퍼에 데이터 전송
+            VisionBuf* buf = vipc_server->get_buffer(VisionStreamType::VISION_STREAM_MAP);
+
+            uint8_t* dst = (uint8_t*)buf->addr;
+            memset(dst, 128, buf->len); // 초기화
+
+            for (int i = 0; i < WIDTH * HEIGHT; i++) {
+                dst[i] = image_data[i * 4]; // R 값을 사용하여 grayscale 변환
+            }
+
+            VisionIpcBufExtra extra = {
+                .frame_id = frame_id,
+                .timestamp_sof = nanos_since_boot(),
+                .timestamp_eof = nanos_since_boot(),
+                .valid = true
+            };
+            vipc_server->send(buf, &extra);
+            frame_id++;
+            return true;
+        }
+        return false;
+    }
+
+    void test_draw(NVGcontext* vg) {
+        static int tex_id = -1; // 텍스처 ID 저장
+        if (tex_id == -1) {
+            tex_id = nvgCreateImageRGBA(vg, WIDTH, HEIGHT, 0, image_data.data());
+        }
+        else {
+            // 텍스처 업데이트
+            nvgUpdateImage(vg, tex_id, image_data.data());
+        }
+
+        // 텍스처를 화면에 그리기
+        float x_offset = 200;
+        float y_offset = 200;
+        NVGpaint img_paint = nvgImagePattern(vg, x_offset, y_offset, WIDTH, HEIGHT, 0, tex_id, 1.0f);
+        nvgBeginPath(vg);
+        nvgRect(vg, x_offset, y_offset, WIDTH, HEIGHT); // 텍스처를 그릴 영역
+        nvgFillPaint(vg, img_paint);
+        nvgFill(vg);
+    }
+
+private:
+    std::unique_ptr<VisionIpcServer> vipc_server;
+    uint32_t frame_id = 0;
+    double vipc_sent_t = 0.0;
+    float pixels_per_meter = 0.5f; // 픽셀 단위 조정
+    const int HEIGHT = 256, WIDTH = 256;
+    std::vector<unsigned char> image_data;
+};
+#endif
 
 DrawPlot drawPlot;
 DrawCarrot drawCarrot;
@@ -2393,6 +2584,8 @@ TurnInfoDrawer drawTurnInfo;
 
 OnroadAlerts::Alert alert;
 NVGcolor alert_color;
+
+//MapRenderer mapRenderer;
 
 void ui_draw(UIState *s, ModelRenderer* model_renderer, int w, int h) {
   _model = model_renderer;
@@ -2425,6 +2618,8 @@ void ui_draw(UIState *s, ModelRenderer* model_renderer, int w, int h) {
 
   drawBlindSpot.draw(s);
 
+  drawCarrot.drawRadarInfo(s);
+
   drawCarrot.drawHud(s);
 
   drawCarrot.drawDebug(s);
@@ -2435,9 +2630,17 @@ void ui_draw(UIState *s, ModelRenderer* model_renderer, int w, int h) {
 
   drawTurnInfo.draw(s);
 
+
   ui_draw_text_a2(s);
   ui_draw_alert(s);
 
+#if 0
+  if (drawCarrot.nav_path_vertex_count > 1) {
+      mapRenderer.render(drawCarrot.nav_path_vertex_xy, drawCarrot.nav_path_vertex_count);
+      mapRenderer.publish();
+      mapRenderer.test_draw(s->vg);
+  }
+#endif
   nvgResetScissor(s->vg);
   nvgEndFrame(s->vg);
   glDisable(GL_BLEND);

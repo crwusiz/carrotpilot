@@ -237,7 +237,7 @@ class SelfdriveD:
         elif "turn" in atc_type and "turn" not in self.atc_type_last:   # fork left/right -> turn left/right
           self.events.add(EventName.audioTurn)
         self.atc_type_last = atc_type
-    
+
     # Handle lane change
     if self.sm['modelV2'].meta.laneChangeState == LaneChangeState.preLaneChange:
       direction = self.sm['modelV2'].meta.laneChangeDirection

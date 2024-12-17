@@ -32,9 +32,12 @@ class CarInterface(CarInterfaceBase):
     ret.carName = "hyundai"
 
     cam_can = CanBus(None, fingerprint).CAM if camera_scc == 0 else 1
-    hda2 = 0x50 in fingerprint[cam_can] or 0x110 in fingerprint[cam_can]
+    hda2 = False #0x50 in fingerprint[cam_can] or 0x110 in fingerprint[cam_can]
     hda2 = hda2 or params.get_bool("CanfdHDA2")
     CAN = CanBus(None, fingerprint, hda2)
+
+    if params.get_int("CanfdDebug") == -1:
+      ret.flags |= HyundaiFlags.ANGLE_CONTROL.value
 
     if ret.flags & HyundaiFlags.CANFD:
       # Shared configuration for CAN-FD cars
@@ -183,7 +186,8 @@ class CarInterface(CarInterfaceBase):
 
     # *** feature detection ***
     if ret.flags & HyundaiFlags.CANFD:
-      if candidate in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_SORENTO_4TH_GEN, CAR.KIA_SORENTO_HEV_4TH_GEN) and hda2: ##카니발4th & hda2 인경우에만 BSM이 ADAS에서 나옴.
+      #if candidate in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_SORENTO_4TH_GEN, CAR.KIA_SORENTO_HEV_4TH_GEN, CAR.HYUNDAI_IONIQ_5_N, CAR.KIA_EV9) and hda2: ##카니발4th & hda2 인경우에만 BSM이 ADAS에서 나옴.
+      if 0x161 in fingerprint[CAN.ECAN] and hda2:
         ret.extFlags |= HyundaiExtFlags.BSM_IN_ADAS.value
       print(f"$$$$$ CanFD ECAN = {CAN.ECAN}")
       if 0x1fa in fingerprint[CAN.ECAN]:
