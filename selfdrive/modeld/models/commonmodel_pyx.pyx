@@ -34,7 +34,7 @@ cdef class ModelFrame:
   def __dealloc__(self):
     del self.frame
 
-  def prepare(self, VisionBuf buf, float[:] projection):
+  def prepare(self, VisionBuf buf, float[:] projection, CLMem output):
     cdef mat3 cprojection
     memcpy(cprojection.v, &projection[0], 9*sizeof(float))
     cdef float * data

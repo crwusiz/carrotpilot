@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
 import os
-from openpilot.system.hardware import TICI
-
-#
-if TICI:
-  from tinygrad.tensor import Tensor
-  from tinygrad.dtype import dtypes
-  from openpilot.selfdrive.modeld.runners.tinygrad_helpers import qcom_tensor_from_opencl_address
-  os.environ['QCOM'] = '1'
-else:
-  from openpilot.selfdrive.modeld.runners.ort_helpers import make_onnx_cpu_runner
 import time
 import pickle
 import numpy as np
@@ -28,18 +18,21 @@ from openpilot.common.transformations.camera import DEVICE_CAMERAS
 from openpilot.common.transformations.model import get_warp_matrix
 from openpilot.system import sentry
 from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
+from openpilot.selfdrive.modeld.runners import ModelRunner, Runtime
 from openpilot.selfdrive.modeld.parse_model_outputs import Parser
 from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_pose_msg, PublishState
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.selfdrive.modeld.models.commonmodel_pyx import ModelFrame, CLContext
 
-
 PROCESS_NAME = "selfdrive.modeld.modeld"
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
 
-MODEL_PATH = Path(__file__).parent / 'models/supercombo.onnx'
-MODEL_PKL_PATH = Path(__file__).parent / 'models/supercombo_tinygrad.pkl'
+MODEL_PATHS = {
+  ModelRunner.THNEED: Path(__file__).parent / 'models/supercombo.thneed',
+  ModelRunner.ONNX: Path(__file__).parent / 'models/supercombo.onnx'}
+
 METADATA_PATH = Path(__file__).parent / 'models/supercombo_metadata.pkl'
+
 
 class FrameMeta:
   frame_id: int = 0
@@ -56,6 +49,7 @@ class ModelState:
   inputs: dict[str, np.ndarray]
   output: np.ndarray
   prev_desire: np.ndarray  # for tracking the rising edge of the pulse
+  model: ModelRunner
 
   def __init__(self, context: CLContext):
     self.frame = ModelFrame(context)
@@ -71,19 +65,17 @@ class ModelState:
 
     with open(METADATA_PATH, 'rb') as f:
       model_metadata = pickle.load(f)
-    self.input_shapes =  model_metadata['input_shapes']
 
     self.output_slices = model_metadata['output_slices']
     net_output_size = model_metadata['output_shapes']['outputs'][1]
     self.output = np.zeros(net_output_size, dtype=np.float32)
     self.parser = Parser()
 
-    if TICI:
-      self.tensor_inputs = {k: Tensor(v, device='NPY').realize() for k,v in self.numpy_inputs.items()}
-      with open(MODEL_PKL_PATH, "rb") as f:
-        self.model_run = pickle.load(f)
-    else:
-      self.onnx_cpu_runner = make_onnx_cpu_runner(MODEL_PATH)
+    self.model = ModelRunner(MODEL_PATHS, self.output, Runtime.GPU, False, context)
+    self.model.addInput("input_imgs", None)
+    self.model.addInput("big_input_imgs", None)
+    for k,v in self.inputs.items():
+      self.model.addInput(k, v)
 
   def slice_outputs(self, model_outputs: np.ndarray) -> dict[str, np.ndarray]:
     parsed_model_outputs = {k: model_outputs[np.newaxis, v] for k,v in self.output_slices.items()}
@@ -102,23 +94,13 @@ class ModelState:
     self.inputs['traffic_convention'][:] = inputs['traffic_convention']
     self.inputs['lateral_control_params'][:] = inputs['lateral_control_params']
 
-    if TICI:
-      # The imgs tensors are backed by opencl memory, only need init once
-      for key in imgs_cl:
-        if key not in self.tensor_inputs:
-          self.tensor_inputs[key] = qcom_tensor_from_opencl_address(imgs_cl[key].mem_address, self.input_shapes[key], dtype=dtypes.uint8)
-    else:
-      for key in imgs_cl:
-        self.numpy_inputs[key] = self.frames[key].buffer_from_cl(imgs_cl[key]).reshape(self.input_shapes[key])
+    self.model.setInputBuffer("input_imgs", self.frame.prepare(buf, transform.flatten(), self.model.getCLBuffer("input_imgs")))
+    self.model.setInputBuffer("big_input_imgs", self.wide_frame.prepare(wbuf, transform_wide.flatten(), self.model.getCLBuffer("big_input_imgs")))
 
     if prepare_only:
       return None
 
-    if TICI:
-      self.output = self.model_run(**self.tensor_inputs).numpy().flatten()
-    else:
-      self.output = self.onnx_cpu_runner.run(None, self.numpy_inputs)[0].flatten()
-
+    self.model.execute()
     outputs = self.parser.parse_outputs(self.slice_outputs(self.output))
 
     self.inputs['features_buffer'][:-ModelConstants.FEATURE_LEN] = self.inputs['features_buffer'][ModelConstants.FEATURE_LEN:]
@@ -305,6 +287,7 @@ def main(demo=False):
       pm.send('modelV2', modelv2_send)
       pm.send('drivingModelData', drivingdata_send)
       pm.send('cameraOdometry', posenet_send)
+
     last_vipc_frame_id = meta_main.frame_id
 
 
