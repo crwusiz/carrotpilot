@@ -435,8 +435,8 @@ protected:
         }
 
         // plotMin 및 plotMax 범위 제한
-        if (plotMin < -2.0) plotMin = -2.0;
-        if (plotMax > 2.0) plotMax = 2.0;
+        if (plotMin > -2.0) plotMin = -2.0;
+        if (plotMax < 2.0) plotMax = 2.0;
     }
 public:
     void	draw(const UIState* s) {
