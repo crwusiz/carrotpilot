@@ -302,7 +302,7 @@ def addr_input():
       return redirect(url_for('app_token_input'))
     else:
       return redirect(url_for('amap_addr_input'))
-  elif fleet.get_nav_active():
+  elif False: #fleet.get_nav_active(): # carrot: 그냥지움... 이것때문에 토큰을 안물어보는듯...
     if SearchInput == 2:
       return render_template("nonprime.html",
                              gmap_key=gmap_key, lon=lon, lat=lat,
