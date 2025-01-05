@@ -123,7 +123,10 @@ class LateralPlanner:
 
     # Turn off lanes during lane change
     #if self.DH.desire == log.Desire.laneChangeRight or self.DH.desire == log.Desire.laneChangeLeft:
-    if md.meta.desire != log.Desire.none:
+    activeCarrot = sm['carrotMan'].activeCarrot
+    xDistToTurn = sm['carrotMan'].xDistToTurn
+    atc_activate = activeCarrot > 1 and 0 < xDistToTurn < 250
+    if md.meta.desire != log.Desire.none or atc_activate:
       self.LP.lane_change_multiplier = 0.0 #md.meta.laneChangeProb
     else:
       self.LP.lane_change_multiplier = 1.0
