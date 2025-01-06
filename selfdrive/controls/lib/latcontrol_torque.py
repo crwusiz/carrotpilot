@@ -107,7 +107,7 @@ class LatControlTorque(LatControl):
 
       # precompute time differences between ModelConstants.T_IDXS
       self.t_diffs = np.diff(ModelConstants.T_IDXS)
-      self.desired_lat_jerk_time = CP.steerActuatorDelay + 0.3
+      self.desired_lat_jerk_time = self.params.get_float("SteerActuatorDelay") * 0.01 + 0.3
 
     if self.use_nnff:
       self.pitch = FirstOrderFilter(0.0, 0.5, 0.01)
