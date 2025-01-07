@@ -1341,6 +1341,17 @@ BO_ 273 TCU11: 8 TCU
 BO_ 16 ACU13: 8 ACU
  SG_ CF_Acu_CshAct : 0|1@1+ (1.0,0.0) [0.0|1.0] ""  CUBIS,IBOX,ODS
 
+BO_ 1007 CRUISE_BUTTON_ALT: 8 XXX
+ SG_ SET_ME_1 : 52|1@0+ (1,0) [0|1] "" XXX
+ SG_ CruiseSwMain : 58|1@0+ (1,0) [0|1] "" XXX
+ SG_ CruiseSwState : 60|3@1+ (1,0) [0|7] "" XXX
+
+BO_ 1046 CRUISE_BUTTON_LFA: 8 XXX
+ SG_ NEW_SIGNAL_2 : 49|1@0+ (1,0) [0|1] "" XXX
+ SG_ NEW_SIGNAL_1 : 54|1@0+ (1,0) [0|1] "" XXX
+ SG_ NEW_SIGNAL_3 : 57|1@0+ (1,0) [0|1] "" XXX
+ SG_ CruiseSwLfa : 58|1@0+ (1,0) [0|1] "" XXX
+
 BO_ 1040 CGW_USM1: 8 BCM
  SG_ CF_Gway_ATTurnRValue : 0|2@1+ (1.0,0.0) [0.0|3.0] ""  CLU
  SG_ CF_Gway_PTGMRValue : 2|2@1+ (1.0,0.0) [0.0|3.0] ""  CLU

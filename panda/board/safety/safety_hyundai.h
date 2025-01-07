@@ -53,6 +53,7 @@ static const CanMsg HYUNDAI_TX_MSGS[] = {
   {.msg = {{0x421, (scc_bus), 8, .check_checksum = true, .max_counter = 15U, .frequency = 50U}, { 0 }, { 0 }}}, \
 
 static bool hyundai_legacy = false;
+static bool hyundai_cruise_buttons_alt = false;
 
 static uint8_t hyundai_get_counter(const CANPacket_t *to_push) {
   int addr = GET_ADDR(to_push);
@@ -145,7 +146,13 @@ static void hyundai_rx_hook(const CANPacket_t *to_push) {
     }
 
     // ACC steering wheel buttons
-    if (addr == 0x4F1) {
+    if (addr == 1007) hyundai_cruise_buttons_alt = true; // CASPER_EV: 1007
+    if (addr == 1007) {      
+      int cruise_button = (GET_BYTE(to_push, 7) >> 4) & 0x07U;
+      bool main_button = GET_BIT(to_push, 58U);
+      hyundai_common_cruise_buttons_check(cruise_button, main_button);
+    }
+    else if (addr == 0x4F1 && !hyundai_cruise_buttons_alt) {
       int cruise_button = GET_BYTE(to_push, 0) & 0x7U;
       bool main_button = GET_BIT(to_push, 3U);
       hyundai_common_cruise_buttons_check(cruise_button, main_button);

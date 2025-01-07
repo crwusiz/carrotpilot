@@ -120,6 +120,7 @@ static bool is_msg_valid(RxCheck addr_list[], int index) {
     if (!addr_list[index].status.valid_checksum || !addr_list[index].status.valid_quality_flag || (addr_list[index].status.wrong_counters >= MAX_WRONG_COUNTERS)) {
       valid = false;
       controls_allowed = false;
+      print("controls_allowed(msgvalid) = false\n");
     }
   }
   return valid;
@@ -779,6 +780,7 @@ void pcm_cruise_check(bool cruise_engaged) {
   // Enter controls on rising edge of stock ACC, exit controls if stock ACC disengages
   if (!cruise_engaged) {
     controls_allowed = false;
+    print("controls_allowed(pcm) = false\n");
   }
   if (cruise_engaged && !cruise_engaged_prev) {
     controls_allowed = true;

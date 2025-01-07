@@ -119,6 +119,7 @@ class HyundaiExtFlags(IntFlag):
   CANFD_TPMS = 2 ** 9
   CANFD_GEARS_69 = 2 ** 10
   CANFD_161 = 2 ** 11
+  CRUISE_BUTTON_ALT = 2 ** 12     # for CASPER_EV
 
 class Footnote(Enum):
   CANFD = CarFootnote(

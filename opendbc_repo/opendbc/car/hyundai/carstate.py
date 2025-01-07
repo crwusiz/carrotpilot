@@ -225,8 +225,11 @@ class CarState(CarStateBase):
     #self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
     #carrot {{
     cruise_button = [Buttons.NONE]
-    if self.CP.extFlags & HyundaiExtFlags.HAS_LFA_BUTTON.value:
-      if cp.vl["BCM_PO_11"]["LFA_Pressed"]:
+    if self.CP.extFlags & HyundaiExtFlags.CRUISE_BUTTON_ALT.value:
+      lfa_button = cp.vl.get("CRUISE_BUTTON_LFA", {}).get("CruiseSwLfa", 0)
+      cruise_button = [Buttons.LFA_BUTTON] if lfa_button > 0 else cp.vl_all["CRUISE_BUTTON_ALT"]["CruiseSwState"]
+    elif self.CP.extFlags & HyundaiExtFlags.HAS_LFA_BUTTON.value:
+      if cp.vl.get("BCM_PO_11", {}).get("LFA_Pressed", 0):
         cruise_button = [Buttons.LFA_BUTTON]
       else:
         cruise_button = cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"]
@@ -236,7 +239,10 @@ class CarState(CarStateBase):
     # }} carrot
     prev_main_buttons = self.main_buttons[-1]
     #self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
-    self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
+    if self.CP.extFlags & HyundaiExtFlags.CRUISE_BUTTON_ALT.value:
+      self.main_buttons.extend(cp.vl_all["CRUISE_BUTTON_ALT"]["CruiseSwMain"])
+    else:
+      self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
     self.mdps12 = copy.copy(cp.vl["MDPS12"])
 
     ret.buttonEvents = [*create_button_events(self.cruise_buttons[-1], prev_cruise_buttons, BUTTONS_DICT),
@@ -611,6 +617,10 @@ class CarState(CarStateBase):
 
     if CP.extFlags & HyundaiExtFlags.NAVI_CLUSTER.value:
       pt_messages.append(("Navi_HU", 5))
+
+    if CP.extFlags & HyundaiExtFlags.CRUISE_BUTTON_ALT.value:
+      pt_messages.append(("CRUISE_BUTTON_ALT", 6))
+      pt_messages.append(("CRUISE_BUTTON_LFA", 6))
 
 
     cam_messages = [

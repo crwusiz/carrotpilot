@@ -207,6 +207,8 @@ class CarInterface(CarInterfaceBase):
         ret.extFlags |= HyundaiExtFlags.HAS_LFAHDA.value
       if 913 in fingerprint[0]:
         ret.extFlags |= HyundaiExtFlags.HAS_LFA_BUTTON.value
+      if 1007 in fingerprint[0]:
+        ret.extFlags |= HyundaiExtFlags.CRUISE_BUTTON_ALT.value
 
     print(f"$$$$ enableBsm = {ret.enableBsm}")
 
