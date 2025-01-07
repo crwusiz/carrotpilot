@@ -1,6 +1,7 @@
 from cereal import log
 from openpilot.common.conversions import Conversions as CV
 from openpilot.common.realtime import DT_MDL
+from openpilot.common.numpy_fast import interp
 
 from openpilot.common.params import Params
 
@@ -51,12 +52,16 @@ def calculate_lane_width_frog(lane, current_lane, road_edge):
   return min(distance_to_lane, distance_to_road_edge), distance_to_road_edge
 
 def calculate_lane_width(lane, lane_prob, current_lane, road_edge):
-  index = 10 # 약 1초 앞의 차선.
-  distance_to_lane = abs(current_lane.y[index] - lane.y[index])
+  t = 1.0 # 약 1초 앞의 차선.
+  current_lane_y = interp(t, current_lane.t, current_lane.y)
+  lane_y = interp(t, lane.t, lane.y)
+  distance_to_lane = abs(current_lane_y - lane_y)
   #if lane_prob < 0.3:# 차선이 없으면 없는것으로 간주시킴.
   #  distance_to_lane = min(2.0, distance_to_lane)
-  distance_to_road_edge = abs(current_lane.y[index] - road_edge.y[index])
-  return min(distance_to_lane, distance_to_road_edge), distance_to_road_edge, lane_prob > 0.5
+  road_edge_y = interp(t, road_edge.t, road_edge.y)
+  distance_to_road_edge = abs(current_lane_y - road_edge_y)
+  distance_to_road_edge_far = interp(5.0, road_edge.t, road_edge.y)
+  return min(distance_to_lane, distance_to_road_edge), distance_to_road_edge, distance_to_road_edge_far, lane_prob > 0.5
 
 class ExistCounter:
   def __init__(self):
@@ -97,6 +102,8 @@ class DesireHelper:
     self.lane_width_right = 0
     self.distance_to_road_edge_left = 0
     self.distance_to_road_edge_right = 0
+    self.distance_to_road_edge_left_far = 0
+    self.distance_to_road_edge_right_far = 0
     self.blinker_ignore = False
 
     self.lane_exist_left_count = ExistCounter()
@@ -154,9 +161,9 @@ class DesireHelper:
       self.blinker_ignore = False
     one_blinker &= not self.blinker_ignore
 
-    self.lane_width_left, self.distance_to_road_edge_left, lane_prob_left = calculate_lane_width(modeldata.laneLines[0], modeldata.laneLineProbs[0],
+    self.lane_width_left, self.distance_to_road_edge_left, self.distance_to_road_edge_left_far, lane_prob_left = calculate_lane_width(modeldata.laneLines[0], modeldata.laneLineProbs[0],
                                                                                                  modeldata.laneLines[1], modeldata.roadEdges[0])
-    self.lane_width_right, self.distance_to_road_edge_right, lane_prob_right = calculate_lane_width(modeldata.laneLines[3], modeldata.laneLineProbs[3],
+    self.lane_width_right, self.distance_to_road_edge_right, self.distance_to_road_edge_right_far, lane_prob_right = calculate_lane_width(modeldata.laneLines[3], modeldata.laneLineProbs[3],
                                                                                                     modeldata.laneLines[2], modeldata.roadEdges[1])
     self.lane_exist_left_count.update(lane_prob_left)
     self.lane_exist_right_count.update(lane_prob_right)
@@ -168,8 +175,8 @@ class DesireHelper:
     available_count = int(0.2 / DT_MDL)
     self.available_left_lane = self.lane_width_left_count.counter > available_count
     self.available_right_lane = self.lane_width_right_count.counter > available_count
-    self.available_left_edge = self.road_edge_left_count.counter > available_count
-    self.available_right_edge = self.road_edge_right_count.counter > available_count
+    self.available_left_edge = self.road_edge_left_count.counter > available_count and self.distance_to_road_edge_left >= self.distance_to_road_edge_left_far - 0.2
+    self.available_right_edge = self.road_edge_right_count.counter > available_count and self.distance_to_road_edge_right >= self.distance_to_road_edge_right_far - 0.2
 
     if one_blinker:
       lane_available = self.available_left_lane if leftBlinker else self.available_right_lane
