@@ -84,18 +84,18 @@ def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
-def get_stopped_equivalence_factor(v_lead, comfort_brake):
-  return (v_lead**2) / (2 * comfort_brake)
+def get_stopped_equivalence_factor(v_lead):
+  return (v_lead**2) / (2 * COMFORT_BRAKE)
 
 def get_safe_obstacle_distance(v_ego, t_follow=None, comfort_brake=COMFORT_BRAKE, stop_distance=STOP_DISTANCE):
   if t_follow is None:
     t_follow = get_T_FOLLOW()
   return (v_ego**2) / (2 * comfort_brake) + t_follow * v_ego + stop_distance
 
-def desired_follow_distance(v_ego, v_lead, comfort_brake=COMFORT_BRAKE, t_follow=None):
+def desired_follow_distance(v_ego, v_lead, t_follow=None):
   if t_follow is None:
     t_follow = get_T_FOLLOW()
-  return get_safe_obstacle_distance(v_ego, t_follow, comfort_brake) - get_stopped_equivalence_factor(v_lead, comfort_brake)
+  return get_safe_obstacle_distance(v_ego, t_follow) - get_stopped_equivalence_factor(v_lead)
 
 
 def gen_long_model():
@@ -353,26 +353,25 @@ class LongitudinalMpc:
     a_ego = self.x0[2]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
-    mode = self.mode
-    comfort_brake = COMFORT_BRAKE
-    stop_distance = STOP_DISTANCE
-    if mode == 'blended':
-      stop_x = 1000.0
-    else:
-      v_cruise, stop_x, mode = carrot.v_cruise, carrot.stop_dist, carrot.mode
-      comfort_brake, stop_distance = carrot.comfort_brake, carrot.stop_distance
-      self.desired_distance = desired_follow_distance(v_ego, radarstate.leadOne.vLead, comfort_brake, t_follow)
-      t_follow = carrot.dynamic_t_follow(t_follow, radarstate.leadOne, self.desired_distance)
-
     lead_xv_0 = self.process_lead(radarstate.leadOne)
     lead_xv_1 = self.process_lead(radarstate.leadTwo)
 
     # To estimate a safe distance from a moving lead, we calculate how much stopping
     # distance that lead needs as a minimum. We can add that to the current distance
     # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1], comfort_brake)
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1], comfort_brake)
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
 
+    mode = self.mode
+    comfort_brake = COMFORT_BRAKE
+    stop_distance = STOP_DISTANCE
+    self.desired_distance = desired_follow_distance(v_ego, radarstate.leadOne.vLead, t_follow)
+    if mode == 'blended':
+      stop_x = 1000.0
+    else:
+      v_cruise, stop_x, mode = carrot.v_cruise, carrot.stop_dist, carrot.mode
+      comfort_brake, stop_distance = carrot.comfort_brake, carrot.stop_distance
+      t_follow = carrot.dynamic_t_follow(t_follow, radarstate.leadOne, self.desired_distance)
 
     self.params[:,0] = ACCEL_MIN if not reset_state else a_ego
     # negative accel constraint causes problems because negative speed is not allowed
