@@ -1102,7 +1102,7 @@
       "egroup": "FDIST",
       "etitle": "TF(1): TimeFollow1x0.01s(110)",
       "edescr": "",
-      "min": 70,
+      "min": 40,
       "max": 300,
       "default": 110,
       "unit": 5
@@ -1115,7 +1115,7 @@
       "egroup": "FDIST",
       "etitle": "TF(2): TimeFollow2x0.01s(120)",
       "edescr": "",
-      "min": 70,
+      "min": 40,
       "max": 300,
       "default": 120,
       "unit": 5
@@ -1128,7 +1128,7 @@
       "egroup": "FDIST",
       "etitle": "TF(3): TimeFollow3x0.01s(140)",
       "edescr": "",
-      "min": 70,
+      "min": 40,
       "max": 300,
       "default": 140,
       "unit": 5
@@ -1141,7 +1141,7 @@
       "egroup": "FDIST",
       "etitle": "TF(4): TimeFollow4x0.01s(160)",
       "edescr": "",
-      "min": 70,
+      "min": 40,
       "max": 300,
       "default": 160,
       "unit": 5
