@@ -223,6 +223,19 @@
       "unit": 50
     },
     {
+      "group": "크루즈",
+      "name": "CruiseEcoControl",
+      "title": "크루즈연비제어(2km/h)",
+      "descr": "목표속도를 일시적으로 올림",
+      "egroup": "CRUISE",
+      "etitle": "CruiseEcoControl(2km/h)",
+      "edescr": "",
+      "min": 0,
+      "max": 10,
+      "default": 2,
+      "unit": 1
+    },
+    {
       "group": "조향튜닝",
       "name": "CustomSR",
       "title": "CustomSteerRatiox0.1(0)",
