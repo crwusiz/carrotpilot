@@ -681,7 +681,7 @@
       "group": "크루즈",
       "name": "AutoSpeedUptoRoadSpeedLimit",
       "title": "자동속도증가 (100)%",
-      "descr": "모델에서 제공하는 속도까지 자동속도증가x로드스피드까지 자동속도올림.",
+      "descr": "전방차량에 따라 자동속도증가. 로드스피드*비율 까지 자동속도올림.",
       "egroup": "CRUISE",
       "etitle": "AutoSpeedUpx:(100)%",
       "edescr": "",
