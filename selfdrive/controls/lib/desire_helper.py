@@ -60,7 +60,7 @@ def calculate_lane_width(lane, lane_prob, current_lane, road_edge):
   #  distance_to_lane = min(2.0, distance_to_lane)
   road_edge_y = interp(t, road_edge.t, road_edge.y)
   distance_to_road_edge = abs(current_lane_y - road_edge_y)
-  distance_to_road_edge_far = interp(5.0, road_edge.t, road_edge.y)
+  distance_to_road_edge_far = abs(current_lane_y - interp(2.0, road_edge.t, road_edge.y))
   return min(distance_to_lane, distance_to_road_edge), distance_to_road_edge, distance_to_road_edge_far, lane_prob > 0.5
 
 class ExistCounter:
@@ -175,8 +175,8 @@ class DesireHelper:
     available_count = int(0.2 / DT_MDL)
     self.available_left_lane = self.lane_width_left_count.counter > available_count
     self.available_right_lane = self.lane_width_right_count.counter > available_count
-    self.available_left_edge = self.road_edge_left_count.counter > available_count and self.distance_to_road_edge_left >= self.distance_to_road_edge_left_far - 0.2
-    self.available_right_edge = self.road_edge_right_count.counter > available_count and self.distance_to_road_edge_right >= self.distance_to_road_edge_right_far - 0.2
+    self.available_left_edge = self.road_edge_left_count.counter > available_count and self.distance_to_road_edge_left < self.distance_to_road_edge_left_far + 0.2
+    self.available_right_edge = self.road_edge_right_count.counter > available_count and self.distance_to_road_edge_right < self.distance_to_road_edge_right_far + 0.2
 
     if one_blinker:
       lane_available = self.available_left_lane if leftBlinker else self.available_right_lane
