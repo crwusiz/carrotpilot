@@ -1737,6 +1737,8 @@ class CarrotServ:
 
       self.vpPosPointLat = float(json.get("vpPosPointLat", self.vpPosPointLat))
       self.vpPosPointLon = float(json.get("vpPosPointLon", self.vpPosPointLon))
+      self.last_calculate_gps_time = time.monotonic()
+
       self.nPosSpeed = float(json.get("nPosSpeed", self.nPosSpeed))
       self.nPosAngle = float(json.get("nPosAngle", self.nPosAngle))
       self._update_tbt()
