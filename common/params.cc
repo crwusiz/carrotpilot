@@ -308,7 +308,6 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"MaxAngleFrames", PERSISTENT},
     {"SoftHoldMode", PERSISTENT},
     {"CarrotLatControl", PERSISTENT },
-    {"CarrotLatFilter", PERSISTENT },
     {"LatMpcPathCost", PERSISTENT},
     {"LatMpcAccelCost", PERSISTENT},
     {"LatMpcJerkCost", PERSISTENT},

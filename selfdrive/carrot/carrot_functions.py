@@ -156,7 +156,7 @@ class CarrotPlanner:
     elif self.params_count == 40:
       self.stop_distance = self.params.get_float("StopDistanceCarrot") / 100.
       self.comfortBrake = self.params.get_float("ComfortBrake") / 100.
-      self.eco_over_speed = self.params.get_int("CruiseEcoControl") / 100.
+      self.eco_over_speed = self.params.get_int("CruiseEcoControl")
 
     elif self.params_count >= 100:
 

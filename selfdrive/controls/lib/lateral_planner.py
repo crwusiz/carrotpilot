@@ -90,7 +90,6 @@ class LateralPlanner:
       LATERAL_ACCEL_COST = self.params.get_float("LatMpcAccelCost") * 0.01
       LATERAL_JERK_COST = self.params.get_float("LatMpcJerkCost") * 0.01
       STEERING_RATE_COST = self.params.get_float("LatMpcSteeringRateCost")
-      self.carrot_lat_filter = self.params.get_int("CarrotLatFilter")
 
     # clip speed , lateral planning is not possible at 0 speed
     measured_curvature = sm['controlsState'].curvature
@@ -160,8 +159,7 @@ class LateralPlanner:
                      p,
                      y_pts,
                      heading_pts,
-                     yaw_rate_pts,
-                     self.carrot_lat_filter)
+                     yaw_rate_pts)
     # init state for next iteration
     # mpc.u_sol is the desired second derivative of psi given x0 curv state.
     # with x0[3] = measured_yaw_rate, this would be the actual desired yaw rate.
